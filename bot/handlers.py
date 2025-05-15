@@ -188,8 +188,10 @@ async def show_quiz_stats(message: Message, state: FSMContext):
     # Grafik yuborish
     try:
         from .plot_utils import plot_progress_bar
+        from aiogram.types import FSInputFile
         buf = plot_progress_bar(words, correct, attempts)
-        await message.answer_photo(photo=buf, caption="So'zlar bo'yicha urinishlar grafigi")
+        buf.seek(0)
+        await message.answer_photo(photo=FSInputFile(buf, filename='progress.png'), caption="So'zlar bo'yicha urinishlar grafigi")
     except Exception as e:
         await message.answer(f"Grafik chizishda xatolik: {e}")
 
@@ -201,7 +203,11 @@ async def show_quiz_stats(message: Message, state: FSMContext):
         await db.add_attempt(pool, w['id'], user_id, a, ok)
 
     # Oldingi mashq natijasi bilan taqqoslash (progress)
-    prev_stats = await db.get_attempts_by_user_and_date(pool, user_id, date)
+    from datetime import datetime
+    d = date
+    if isinstance(d, str):
+        d = datetime.strptime(d, "%Y-%m-%d").date()
+    prev_stats = await db.get_attempts_by_user_and_date(pool, user_id, d)
     prev_correct = sum(1 for row in prev_stats if row['is_correct'])
     await message.answer(f"Oldingi mashqda to'g'ri topilgan so'zlar: {prev_correct} ta.")
 

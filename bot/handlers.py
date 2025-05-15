@@ -108,7 +108,7 @@ async def ask_next_word(message: Message, state: FSMContext):
             if not romanized:
                 from . import utils
                 romanized = utils.romanize_korean(words[idx]['korean'])
-            # Progress jadvali
+            # Progress jadvali (har 5 ta so'zdan keyin yangi qatordan)
             progress = []
             for i, w in enumerate(words):
                 if correct[i]:
@@ -117,8 +117,13 @@ async def ask_next_word(message: Message, state: FSMContext):
                     progress.append(f"❌ {w['korean']}")
                 else:
                     progress.append(f"⬜️ {w['korean']}")
+            # 5 tadan keyin yangi qatordan chiqarish
+            progress_lines = []
+            for i in range(0, len(progress), 5):
+                progress_lines.append(' '.join(progress[i:i+5]))
+            progress_str = '\n'.join(progress_lines)
             await message.answer(
-                f"✍️ Tarjima yozing: {words[idx]['korean']} ({romanized})\n\nProgress: {' '.join(progress)}"
+                f"✍️ Tarjima yozing: {words[idx]['korean']} ({romanized})\n\nProgress:\n{progress_str}"
             )
             return
 

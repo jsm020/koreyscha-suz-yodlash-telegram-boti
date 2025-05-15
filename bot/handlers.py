@@ -40,21 +40,35 @@ router = Router()
 
 # /start komandasi va deep-link handler
 @router.message(Command("start"))
-async def cmd_start(message: Message):
+async def cmd_start(message: Message, state: FSMContext):
     # Deep-link orqali kelganmi?
     if message.text and message.text.strip().startswith("/start repeat_"):
-        # /start repeat_2025-05-10_123456789
         import re
         m = re.match(r"/start repeat_(\d{4}-\d{2}-\d{2})_(\d+)", message.text.strip())
         if m:
             date, ref_user_id = m.groups()
-            # Do'st uchun shu sanadagi mashqni ochamiz (user_id ni message.from_user.id ga o'zgartiramiz)
-            await message.answer(f"Sizga do'stingiz taklif qilgan {date} sanasidagi mashq ochildi!")
-            # FSM orqali mashqni boshlash
-            state = FSMContext(message.bot, message.from_user.id, message.chat.id)
-            await handle_date_select(message, state, override_date=date)
+            # Kontakt so'rash tugmasi
+            contact_keyboard = ReplyKeyboardMarkup(
+                keyboard=[[KeyboardButton(text="Kontaktni ulashish", request_contact=True)]],
+                resize_keyboard=True
+            )
+            await state.update_data(ref_date=date)
+            await message.answer(
+                f"Sizga do'stingiz taklif qilgan {date} sanasidagi mashqni boshlash uchun kontaktni ulashing:",
+                reply_markup=contact_keyboard
+            )
             return
     await message.answer(HELP_TEXT)
+# Foydalanuvchi kontaktini yuborganda deep-link mashqini boshlash
+@router.message(F.contact)
+async def handle_contact_for_repeat(message: Message, state: FSMContext):
+    data = await state.get_data()
+    date = data.get("ref_date")
+    if not date:
+        await message.answer("Mashq sanasi aniqlanmadi.", reply_markup=ReplyKeyboardRemove())
+        return
+    await message.answer("Kontakt qabul qilindi! Mashq boshlanmoqda...", reply_markup=ReplyKeyboardRemove())
+    await handle_date_select(message, state, override_date=date)
 
 # ──────────────────────────── /takrorlash ───────────────────────
 @router.message(Command("takrorlash"))

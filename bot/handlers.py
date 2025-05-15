@@ -14,7 +14,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 from . import db, utils
-
+from aiogram.types import ReplyKeyboardRemove
+import time
 # ──────────────────────────── Konstantalar ────────────────────────────
 HELP_TEXT = (
     "Assalomu alaykum! 👋\n"
@@ -70,8 +71,7 @@ class QuizStates(StatesGroup):
 
 # ──────────────────────────── Sana tanlash ──────────────────────
 @router.message(F.text.regexp(r"^\d{4}-\d{2}-\d{2}$"))
-from aiogram.types import ReplyKeyboardRemove
-import time
+
 
 async def handle_date_select(message: Message, state: FSMContext):
     date = message.text.strip()

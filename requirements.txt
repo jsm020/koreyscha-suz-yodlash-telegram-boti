@@ -1,0 +1,5 @@
+aiogram
+asyncpg
+hangul-romanize
+gtts
+python-dotenv

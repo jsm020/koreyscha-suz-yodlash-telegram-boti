@@ -3,3 +3,4 @@ asyncpg
 hangul-romanize
 gtts
 python-dotenv
+matplotlib

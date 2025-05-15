@@ -70,6 +70,9 @@ class QuizStates(StatesGroup):
 
 # ──────────────────────────── Sana tanlash ──────────────────────
 @router.message(F.text.regexp(r"^\d{4}-\d{2}-\d{2}$"))
+from aiogram.types import ReplyKeyboardRemove
+import time
+
 async def handle_date_select(message: Message, state: FSMContext):
     date = message.text.strip()
     pool = await db.get_pool()
@@ -77,16 +80,20 @@ async def handle_date_select(message: Message, state: FSMContext):
     words = await db.get_words_by_date(pool, date, user_id=user_id)
 
     if not words:
-        await message.answer("Bu kunda so'zlar topilmadi.")
+        await message.answer("Bu kunda so'zlar topilmadi.", reply_markup=ReplyKeyboardRemove())
         return
 
+    # Mashq boshlanish vaqtini saqlaymiz
     await state.set_state(QuizStates.waiting_for_answer)
     await state.update_data(
         words=[dict(w) for w in words],
         idx=0,
         correct=[False] * len(words),
         attempts=[0] * len(words),
+        started_at=time.time(),
+        date=date
     )
+    await message.answer("Mashq boshlandi!", reply_markup=ReplyKeyboardRemove())
     await ask_next_word(message, state)
 
 # ──────────────────────────── Keyingi savol ─────────────────────
@@ -99,10 +106,20 @@ async def ask_next_word(message: Message, state: FSMContext):
             await state.update_data(idx=idx)
             romanized = words[idx].get('romanized')
             if not romanized:
-                # fallback, agar dbda yo'q bo'lsa
                 from . import utils
                 romanized = utils.romanize_korean(words[idx]['korean'])
-            await message.answer(f"✍️ Tarjima yozing: {words[idx]['korean']} ({romanized})")
+            # Progress jadvali
+            progress = []
+            for i, w in enumerate(words):
+                if correct[i]:
+                    progress.append(f"✅ {w['korean']}")
+                elif attempts[i] >= 2:
+                    progress.append(f"❌ {w['korean']}")
+                else:
+                    progress.append(f"⬜️ {w['korean']}")
+            await message.answer(
+                f"✍️ Tarjima yozing: {words[idx]['korean']} ({romanized})\n\nProgress: {' '.join(progress)}"
+            )
             return
 
     # Hamma so'zlar to'g'ri topildimi yoki 2 martadan ko'p noto'g'ri topilganlar bormi?
@@ -140,16 +157,48 @@ async def handle_quiz_answer(message: Message, state: FSMContext):
 
 # ──────────────────────────── Statistikani ko‘rsatish ───────────
 async def show_quiz_stats(message: Message, state: FSMContext):
+    import time
     data = await state.get_data()
     words, attempts, correct = data["words"], data["attempts"], data["correct"]
+    started_at = data.get("started_at")
+    date = data.get("date")
+    finished_at = time.time()
+    duration = finished_at - started_at if started_at else 0
 
     lines = []
+    correct_count = 0
     for w, a, ok in zip(words, attempts, correct):
         if ok:
-            lines.append(f"{w['korean']} – {w['uzbek']} | Urinishlar: {a}")
+            lines.append(f"✅ {w['korean']} – {w['uzbek']} | Urinishlar: {a}")
+            correct_count += 1
         elif a >= 2:
-            lines.append(f"{w['korean']} – {w['uzbek']} | Topilmadi (2 urinish)")
-    await message.answer("Mashq tugadi!\n\nNatija:\n" + "\n".join(lines))
+            lines.append(f"❌ {w['korean']} – {w['uzbek']} | Topilmadi (2 urinish)")
+
+    total = len(words)
+    await message.answer(
+        f"Mashq tugadi!\n\nNatija:\n" + "\n".join(lines) +
+        f"\n\nJami: {total} ta so'z. To'g'ri topildi: {correct_count}.\nUrinishlar: {sum(attempts)}.\nVaqt: {int(duration)} soniya."
+    )
+
+    # Grafik yuborish
+    try:
+        from .plot_utils import plot_progress_bar
+        buf = plot_progress_bar(words, correct, attempts)
+        await message.answer_photo(photo=buf, caption="So'zlar bo'yicha urinishlar grafigi")
+    except Exception as e:
+        await message.answer(f"Grafik chizishda xatolik: {e}")
+
+    # Oxirgi mashq natijasini progress uchun DBga saqlash
+    pool = await db.get_pool()
+    user_id = message.from_user.id
+    # Har bir so'z uchun yakuniy natijani saqlash (oxirgi mashq)
+    for w, ok, a in zip(words, correct, attempts):
+        await db.add_attempt(pool, w['id'], user_id, a, ok)
+
+    # Oldingi mashq natijasi bilan taqqoslash (progress)
+    prev_stats = await db.get_attempts_by_user_and_date(pool, user_id, date)
+    prev_correct = sum(1 for row in prev_stats if row['is_correct'])
+    await message.answer(f"Oldingi mashqda to'g'ri topilgan so'zlar: {prev_correct} ta.")
 
 # ──────────────────────────── So‘z juftligini qabul qilish ─────
 @router.message()

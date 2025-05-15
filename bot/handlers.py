@@ -152,6 +152,19 @@ async def handle_date_select(message: Message, state: FSMContext, override_date=
             reply_markup=keyboard
         )
         return
+
+    # Faqat yodlanmagan so'zlar bo'lsa, mashq boshlanadi
+    await state.set_state(QuizStates.waiting_for_answer)
+    await state.update_data(
+        words=[dict(w) for w in words],
+        idx=0,
+        correct=[False] * len(words),
+        attempts=[0] * len(words),
+        started_at=time.time(),
+        date=date
+    )
+    await message.answer(f"Mashq boshlandi! (Eng ko'p uringan va oxirgi urinish noto'g'ri bo'lgan {len(words)} ta so'z)", reply_markup=ReplyKeyboardRemove())
+    await ask_next_word(message, state)
 # Yodlangan so'zlar bilan mashq qilishga rozilik bildirsa
 @router.message(QuizStates.waiting_for_known_words_confirm)
 async def handle_known_words_confirm(message: Message, state: FSMContext):

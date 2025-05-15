@@ -213,13 +213,24 @@ async def show_quiz_stats(message: Message, state: FSMContext):
         f"\n\nJami: {total} ta so'z. To'g'ri topildi: {correct_count}.\nUrinishlar: {sum(attempts)}.\nVaqt: {int(duration)} soniya."
     )
 
-    # Grafik yuborish
+    # Grafikni faylga saqlab, images/ papkasidan yuborish
     try:
         from .plot_utils import plot_progress_bar
         from aiogram.types import FSInputFile
+        import os
+        user_id = message.from_user.id
+        images_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'images')
+        os.makedirs(images_dir, exist_ok=True)
+        img_path = os.path.join(images_dir, f'progress_{user_id}.png')
         buf = plot_progress_bar(words, correct, attempts)
-        buf.seek(0)
-        await message.answer_photo(photo=FSInputFile(buf, filename='progress.png'), caption="So'zlar bo'yicha urinishlar grafigi")
+        with open(img_path, 'wb') as f:
+            f.write(buf.read())
+        await message.answer_photo(photo=FSInputFile(img_path), caption="So'zlar bo'yicha urinishlar grafigi")
+        # Faylni o'chirish (ixtiyoriy, xavfsizlik uchun)
+        try:
+            os.remove(img_path)
+        except Exception:
+            pass
     except Exception as e:
         await message.answer(f"Grafik chizishda xatolik: {e}")
 

@@ -81,14 +81,14 @@ async def cmd_takrorlash(message: Message):
     for row in dates:
         date = row["created_at"]
         cnt = row["cnt"]
-        # Deep-link: /start repeat_{date}_{user_id}
         ref_link = f"https://t.me/{bot_username}?start=repeat_{date}_{message.from_user.id}"
+        # 1-qatorda mashq qilish tugmasi
         keyboard.inline_keyboard.append([
-            InlineKeyboardButton(text=f"{date} (do‘stga ulashish)", url=ref_link),
             InlineKeyboardButton(text=f"{date} (mashq qilish)", callback_data=f"repeat_{date}")
         ])
-        lines.append(f"{date} – {cnt} ta so'z")
-    await message.answer("Sanani tanlang:\n" + "\n".join(lines), reply_markup=keyboard)
+        # 2-qatorda copy-paste uchun referal link (monospace)
+        lines.append(f"{date} – {cnt} ta so'z\n<code>{ref_link}</code>")
+    await message.answer("Sanani tanlang:\n" + "\n".join(lines), reply_markup=keyboard, parse_mode="HTML")
 
 # ──────────────────────────── FSM holatlari ─────────────────────
 class QuizStates(StatesGroup):

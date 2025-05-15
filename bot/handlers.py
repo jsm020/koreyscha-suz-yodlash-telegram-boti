@@ -48,27 +48,12 @@ async def cmd_start(message: Message, state: FSMContext):
         if m:
             date, ref_user_id = m.groups()
             # Kontakt so'rash tugmasi
-            contact_keyboard = ReplyKeyboardMarkup(
-                keyboard=[[KeyboardButton(text="Kontaktni ulashish", request_contact=True)]],
-                resize_keyboard=True
-            )
             await state.update_data(ref_date=date)
-            await message.answer(
-                f"Sizga do'stingiz taklif qilgan {date} sanasidagi mashqni boshlash uchun kontaktni ulashing:",
-                reply_markup=contact_keyboard
-            )
+            await message.answer("Mashq boshlanmoqda...", reply_markup=ReplyKeyboardRemove())
+            await handle_date_select(message, state, override_date=date)
             return
     await message.answer(HELP_TEXT)
 # Foydalanuvchi kontaktini yuborganda deep-link mashqini boshlash
-@router.message(F.contact)
-async def handle_contact_for_repeat(message: Message, state: FSMContext):
-    data = await state.get_data()
-    date = data.get("ref_date")
-    if not date:
-        await message.answer("Mashq sanasi aniqlanmadi.", reply_markup=ReplyKeyboardRemove())
-        return
-    await message.answer("Kontakt qabul qilindi! Mashq boshlanmoqda...", reply_markup=ReplyKeyboardRemove())
-    await handle_date_select(message, state, override_date=date)
 
 # ──────────────────────────── /takrorlash ───────────────────────
 @router.message(Command("takrorlash"))

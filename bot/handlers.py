@@ -57,17 +57,19 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from datetime import datetime
 
 @router.message(Command("takrorlash"))
+import asyncio
+
 async def cmd_takrorlash(message: Message):
     pool = await db.get_pool()
     # Unikal sanalar ro'yxatini olish
     async with pool.acquire() as conn:
-        dates = await conn.fetch("SELECT created_at, COUNT(*) as cnt FROM words GROUP BY created_at ORDER BY created_at DESC;")
+        dates = await conn.fetch("SELECT to_char(created_at, 'YYYY-MM-DD') as created_at, COUNT(*) as cnt FROM words GROUP BY created_at ORDER BY created_at DESC;")
     await pool.close()
     if not dates:
         await message.answer("Hech qanday so'z kiritilmagan.")
         return
-    # Tugmalar
-    buttons = [[KeyboardButton(text=str(row['created_at'])) for row in dates]]
+    # Tugmalar (har bir sana alohida qatorda)
+    buttons = [[KeyboardButton(text=str(row['created_at']))] for row in dates]
     markup = ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
     text = "Sanani tanlang:\n" + "\n".join([f"{row['created_at']} – {row['cnt']} ta so'z" for row in dates])
     await message.answer(text, reply_markup=markup)

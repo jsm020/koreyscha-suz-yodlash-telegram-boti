@@ -105,12 +105,21 @@ async def get_words_by_date(pool, date, user_id=None):
 
 # Foydalanuvchi va sana bo'yicha attempts statistikasi
 async def get_attempts_by_user_and_date(pool, user_id, date):
+    # Har bir so'z uchun eng so'nggi urinishni olish
     query = """
-    SELECT w.korean, w.uzbek, a.attempt_count, a.is_correct
+    SELECT w.korean, w.uzbek, a.attempt_count, a.is_correct, a.word_id, a.attempted_at
     FROM attempts a
     JOIN words w ON a.word_id = w.id
-    WHERE a.user_id = $1 AND w.created_at = $2;
+    WHERE a.user_id = $1 AND w.created_at = $2
+    ORDER BY a.word_id, a.attempted_at DESC
     """
     async with pool.acquire() as conn:
-        return await conn.fetch(query, user_id, date)
+        rows = await conn.fetch(query, user_id, date)
+        # Har bir word_id uchun faqat eng so'nggi urinishni olish
+        last_attempts = {}
+        for row in rows:
+            wid = row['word_id']
+            if wid not in last_attempts:
+                last_attempts[wid] = row
+        return list(last_attempts.values())
 

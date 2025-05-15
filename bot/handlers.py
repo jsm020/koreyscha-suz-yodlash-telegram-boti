@@ -77,10 +77,38 @@ async def handle_date_select(message: Message, state: FSMContext):
     date = message.text.strip()
     pool = await db.get_pool()
     user_id = message.from_user.id
-    words = await db.get_words_by_date(pool, date, user_id=user_id)
+    # Foydalanuvchining shu sanadagi so'zlari va ularning eng so'nggi urinish natijasini olamiz
+    from datetime import datetime
+    d = date
+    if isinstance(d, str):
+        d = datetime.strptime(d, "%Y-%m-%d").date()
+    all_attempts = await db.get_attempts_by_user_and_date(pool, user_id, d)
+    # Faqat oxirgi urinish noto'g'ri bo'lgan so'zlar (is_correct=False) yoki umuman urinish bo'lmaganlar
+    wrong_word_ids = set()
+    attempts_count = {}
+    for row in all_attempts:
+        if not row['is_correct']:
+            wrong_word_ids.add(row['word_id'])
+            attempts_count[row['word_id']] = row['attempt_count']
+    # Endi barcha so'zlarni olamiz
+    all_words = await db.get_words_by_date(pool, date, user_id=None)
+    # Faqat noto'g'ri topilgan yoki umuman urinish bo'lmagan so'zlarni tanlaymiz
+    filtered_words = []
+    for w in all_words:
+        if w['id'] in wrong_word_ids:
+            w = dict(w)
+            w['attempts'] = attempts_count.get(w['id'], 0)
+            filtered_words.append(w)
+        elif w['id'] not in [row['word_id'] for row in all_attempts]:
+            w = dict(w)
+            w['attempts'] = 0
+            filtered_words.append(w)
+    # Attempts soni bo'yicha kamayish tartibida 10 ta so'z
+    filtered_words.sort(key=lambda w: -w['attempts'])
+    words = filtered_words[:10]
 
     if not words:
-        await message.answer("Bu kunda so'zlar topilmadi.", reply_markup=ReplyKeyboardRemove())
+        await message.answer("Barcha so'zlar to'g'ri topilgan yoki mashq uchun so'z yo'q.", reply_markup=ReplyKeyboardRemove())
         return
 
     # Mashq boshlanish vaqtini saqlaymiz
@@ -93,7 +121,7 @@ async def handle_date_select(message: Message, state: FSMContext):
         started_at=time.time(),
         date=date
     )
-    await message.answer("Mashq boshlandi!", reply_markup=ReplyKeyboardRemove())
+    await message.answer(f"Mashq boshlandi! (Eng ko'p uringan va oxirgi urinish noto'g'ri bo'lgan {len(words)} ta so'z)", reply_markup=ReplyKeyboardRemove())
     await ask_next_word(message, state)
 
 # ──────────────────────────── Keyingi savol ─────────────────────

@@ -74,13 +74,34 @@ async def add_attempt(pool, word_id, user_id, attempt_count, is_correct):
 
 # Sanalar bo'yicha so'zlar ro'yxati
 from datetime import datetime, date as dt_date
-async def get_words_by_date(pool, date):
+import random
+async def get_words_by_date(pool, date, user_id=None):
     # date string bo'lsa, uni date tipiga aylantiramiz
     if isinstance(date, str):
         date = datetime.strptime(date, "%Y-%m-%d").date()
     query = "SELECT * FROM words WHERE created_at = $1;"
     async with pool.acquire() as conn:
-        return await conn.fetch(query, date)
+        words = await conn.fetch(query, date)
+        # Agar user_id berilgan bo'lsa, attempts soni bo'yicha tartiblash
+        if user_id is not None:
+            # Har bir so'z uchun attempts sonini topamiz
+            word_ids = [w['id'] for w in words]
+            if word_ids:
+                attempts_query = f"""
+                    SELECT word_id, COUNT(*) as cnt
+                    FROM attempts
+                    WHERE user_id = $1 AND word_id = ANY($2::int[])
+                    GROUP BY word_id
+                """
+                attempts = await conn.fetch(attempts_query, user_id, word_ids)
+                attempts_map = {a['word_id']: a['cnt'] for a in attempts}
+                # So'zlarni attempts soni bo'yicha kamayish tartibida, so'ng random aralashtiramiz
+                words = sorted(words, key=lambda w: (-attempts_map.get(w['id'], 0), random.random()))
+            else:
+                random.shuffle(words)
+        else:
+            random.shuffle(words)
+        return words
 
 # Foydalanuvchi va sana bo'yicha attempts statistikasi
 async def get_attempts_by_user_and_date(pool, user_id, date):

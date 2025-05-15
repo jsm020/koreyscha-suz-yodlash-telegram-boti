@@ -73,7 +73,8 @@ class QuizStates(StatesGroup):
 async def handle_date_select(message: Message, state: FSMContext):
     date = message.text.strip()
     pool = await db.get_pool()
-    words = await db.get_words_by_date(pool, date)
+    user_id = message.from_user.id
+    words = await db.get_words_by_date(pool, date, user_id=user_id)
 
     if not words:
         await message.answer("Bu kunda so'zlar topilmadi.")
@@ -96,7 +97,12 @@ async def ask_next_word(message: Message, state: FSMContext):
     for idx, (ok, att) in enumerate(zip(correct, attempts)):
         if not ok and att < 2:
             await state.update_data(idx=idx)
-            await message.answer(f"✍️ Tarjima yozing: {words[idx]['korean']}")
+            romanized = words[idx].get('romanized')
+            if not romanized:
+                # fallback, agar dbda yo'q bo'lsa
+                from . import utils
+                romanized = utils.romanize_korean(words[idx]['korean'])
+            await message.answer(f"✍️ Tarjima yozing: {words[idx]['korean']} ({romanized})")
             return
 
     # Hamma so'zlar to'g'ri topildimi yoki 2 martadan ko'p noto'g'ri topilganlar bormi?

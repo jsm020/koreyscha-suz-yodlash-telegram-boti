@@ -37,8 +37,11 @@ async def handle_word_pair(message: Message):
         return  # Faqat so'z juftligi formatiga javob beramiz
     korean, uzbek = match.groups()
     romanized = utils.romanize_korean(korean)
-    audio_filename = f"audio_{message.from_user.id}_{korean}.mp3"
-    audio_path = f"/tmp/{audio_filename}"
+    # Fayl nomini xavfsiz qilish
+    safe_korean = ''.join(c for c in korean if c.isalnum())
+    audio_filename = f"audio_{message.from_user.id}_{safe_korean}.mp3"
+    audio_dir = os.path.join(os.path.dirname(__file__), '..', 'audio')
+    audio_path = os.path.abspath(os.path.join(audio_dir, audio_filename))
     utils.generate_korean_audio(korean, audio_path)
     # Audio faylni Telegramga yuklash uchun
     audio_file = FSInputFile(audio_path)

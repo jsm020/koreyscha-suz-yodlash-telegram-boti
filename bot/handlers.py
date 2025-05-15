@@ -91,16 +91,16 @@ async def handle_date_select(message: Message, state: FSMContext):
 # ──────────────────────────── Keyingi savol ─────────────────────
 async def ask_next_word(message: Message, state: FSMContext):
     data = await state.get_data()
-    words, correct = data["words"], data["correct"]
-
-    # topilmagan so‘zni izlashi
-    for idx, ok in enumerate(correct):
-        if not ok:
+    words, correct, attempts = data["words"], data["correct"], data["attempts"]
+    # Avval 2 martadan ko'p noto'g'ri topilganlarni o'tkazib yuborish uchun flag
+    for idx, (ok, att) in enumerate(zip(correct, attempts)):
+        if not ok and att < 2:
             await state.update_data(idx=idx)
             await message.answer(f"✍️ Tarjima yozing: {words[idx]['korean']}")
             return
 
-    # hammasi topildi
+    # Hamma so'zlar to'g'ri topildimi yoki 2 martadan ko'p noto'g'ri topilganlar bormi?
+    # Endi 2 martadan ko'p noto'g'ri topilganlarni yakuniy statistikaga qo'shish
     await show_quiz_stats(message, state)
     await state.clear()
 
@@ -124,6 +124,8 @@ async def handle_quiz_answer(message: Message, state: FSMContext):
     if is_correct:
         correct[idx] = True
         await message.answer("✅ To'g'ri!")
+    elif attempts[idx] >= 2:
+        await message.answer(f"❌ Noto'g'ri. Keyingi so'zga o'tamiz.")
     else:
         await message.answer("❌ Noto'g'ri. Yana urinib ko'ring.")
 
@@ -133,12 +135,14 @@ async def handle_quiz_answer(message: Message, state: FSMContext):
 # ──────────────────────────── Statistikani ko‘rsatish ───────────
 async def show_quiz_stats(message: Message, state: FSMContext):
     data = await state.get_data()
-    words, attempts = data["words"], data["attempts"]
+    words, attempts, correct = data["words"], data["attempts"], data["correct"]
 
-    lines = [
-        f"{w['korean']} – {w['uzbek']} | Urinishlar: {a}"
-        for w, a in zip(words, attempts)
-    ]
+    lines = []
+    for w, a, ok in zip(words, attempts, correct):
+        if ok:
+            lines.append(f"{w['korean']} – {w['uzbek']} | Urinishlar: {a}")
+        elif a >= 2:
+            lines.append(f"{w['korean']} – {w['uzbek']} | Topilmadi (2 urinish)")
     await message.answer("Mashq tugadi!\n\nNatija:\n" + "\n".join(lines))
 
 # ──────────────────────────── So‘z juftligini qabul qilish ─────

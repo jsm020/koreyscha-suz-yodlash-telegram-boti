@@ -38,7 +38,6 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from datetime import datetime
 
 @router.message(Command("takrorlash"))
-
 async def cmd_takrorlash(message: Message):
     pool = await db.get_pool()
     # Unikal sanalar ro'yxatini olish

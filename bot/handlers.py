@@ -57,8 +57,8 @@ from datetime import datetime
 async def cmd_takrorlash(message: Message):
     pool = await db.get_pool()
     # Unikal sanalar ro'yxatini olish
-    rows = await pool.acquire() as conn:
-        dates = await conn.fetch("SELECT DISTINCT created_at, COUNT(*) as cnt FROM words GROUP BY created_at ORDER BY created_at DESC;")
+    async with pool.acquire() as conn:
+        dates = await conn.fetch("SELECT created_at, COUNT(*) as cnt FROM words GROUP BY created_at ORDER BY created_at DESC;")
     await pool.close()
     if not dates:
         await message.answer("Hech qanday so'z kiritilmagan.")

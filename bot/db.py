@@ -1,4 +1,5 @@
 
+
 import os
 import asyncpg
 from dotenv import load_dotenv
@@ -30,15 +31,26 @@ CREATE TABLE IF NOT EXISTS attempts (
 );
 """
 
+# Global pool
+pool = None
+
 async def get_pool():
-    return await asyncpg.create_pool(DATABASE_URL)
+    global pool
+    if pool is None:
+        pool = await asyncpg.create_pool(DATABASE_URL)
+    return pool
+
+async def close_pool():
+    global pool
+    if pool is not None:
+        await pool.close()
+        pool = None
 
 async def init_db():
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute(CREATE_WORDS_TABLE)
         await conn.execute(CREATE_ATTEMPTS_TABLE)
-    await pool.close()
 
 # So'z qo'shish
 async def add_word(pool, korean, uzbek, romanized, audio_url):

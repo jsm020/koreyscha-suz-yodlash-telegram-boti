@@ -2,12 +2,9 @@
 import asyncio
 import os
 from aiogram import Bot, Dispatcher
-from aiogram.types import Message
-from aiogram.filters import Command
 from dotenv import load_dotenv
-from . import handlers
+from . import handlers, db
 
-# .env fayldan token va DB configlarni yuklash uchun
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
@@ -17,7 +14,10 @@ async def main():
     # Handlerlarni ro'yxatdan o'tkazish
     handlers.register_handlers(dp)
     print("Bot ishga tushdi!")
-    await dp.start_polling(bot)
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await db.close_pool()
 
 if __name__ == "__main__":
     asyncio.run(main())

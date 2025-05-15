@@ -94,6 +94,7 @@ async def cmd_takrorlash(message: Message):
 class QuizStates(StatesGroup):
     waiting_for_date = State()
     waiting_for_answer = State()
+    waiting_for_known_words_confirm = State()
 
 # ──────────────────────────── Sana tanlash ──────────────────────
 @router.message(F.text.regexp(r"^\d{4}-\d{2}-\d{2}$"))
@@ -106,6 +107,7 @@ async def handle_date_select(message: Message, state: FSMContext, override_date=
     d = date
     if isinstance(d, str):
         d = datetime.strptime(d, "%Y-%m-%d").date()
+
     all_attempts = await db.get_attempts_by_user_and_date(pool, user_id, d)
     # Faqat oxirgi urinish noto'g'ri bo'lgan so'zlar (is_correct=False) yoki umuman urinish bo'lmaganlar
     wrong_word_ids = set()
@@ -114,11 +116,17 @@ async def handle_date_select(message: Message, state: FSMContext, override_date=
         if not row['is_correct']:
             wrong_word_ids.add(row['word_id'])
             attempts_count[row['word_id']] = row['attempt_count']
+
+    # Foydalanuvchining yodlangan so'zlari (known_words)
+    known_word_ids = await db.get_known_word_ids(pool, user_id)
+
     # Endi barcha so'zlarni olamiz
     all_words = await db.get_words_by_date(pool, date, user_id=None)
-    # Faqat noto'g'ri topilgan yoki umuman urinish bo'lmagan so'zlarni tanlaymiz
+    # Faqat noto'g'ri topilgan yoki umuman urinish bo'lmagan va known_words da yo'q so'zlarni tanlaymiz
     filtered_words = []
     for w in all_words:
+        if w['id'] in known_word_ids:
+            continue  # yodlangan so'zlarni o'tkazib yuboramiz
         if w['id'] in wrong_word_ids:
             w = dict(w)
             w['attempts'] = attempts_count.get(w['id'], 0)
@@ -131,9 +139,61 @@ async def handle_date_select(message: Message, state: FSMContext, override_date=
     filtered_words.sort(key=lambda w: -w['attempts'])
     words = filtered_words[:10]
 
+
     if not words:
-        await message.answer("Barcha so'zlar to'g'ri topilgan yoki mashq uchun so'z yo'q.", reply_markup=ReplyKeyboardRemove())
+        # Yodlanmagan so'zlar yo'q, endi known_words bilan mashq qilishni so'raymiz
+        await state.set_state(QuizStates.waiting_for_known_words_confirm)
+        keyboard = ReplyKeyboardMarkup(
+            keyboard=[[KeyboardButton(text="Ha"), KeyboardButton(text="Yo'q")]],
+            resize_keyboard=True
+        )
+        await message.answer(
+            "Barcha so'zlar yodlangan. Yodlangan so'zlar bilan mashq qilishni xohlaysizmi? (Ha/Yo'q)",
+            reply_markup=keyboard
+        )
         return
+# Yodlangan so'zlar bilan mashq qilishga rozilik bildirsa
+@router.message(QuizStates.waiting_for_known_words_confirm)
+async def handle_known_words_confirm(message: Message, state: FSMContext):
+    javob = message.text.strip().lower()
+    if javob not in ["ha", "yo'q", "yoq", "yo‘q"]:
+        await message.answer("Iltimos, faqat 'Ha' yoki 'Yo'q' deb javob bering.")
+        return
+    if javob.startswith("ha"):
+        # known_words dagi so'zlarni olib, mashqni boshlaymiz
+        pool = await db.get_pool()
+        user_id = message.from_user.id
+        known_word_ids = await db.get_known_word_ids(pool, user_id)
+        if not known_word_ids:
+            await message.answer("Sizda yodlangan so'zlar mavjud emas.", reply_markup=ReplyKeyboardRemove())
+            await state.clear()
+            return
+        # known_words dagi so'zlarni words jadvalidan olamiz
+        query = "SELECT * FROM words WHERE id = ANY($1::int[])"
+        async with pool.acquire() as conn:
+            all_words = await conn.fetch(query, list(known_word_ids))
+        # 10 tasini tanlaymiz (random)
+        import random
+        random.shuffle(all_words)
+        words = [dict(w) for w in all_words[:10]]
+        if not words:
+            await message.answer("Sizda yodlangan so'zlar mavjud emas.", reply_markup=ReplyKeyboardRemove())
+            await state.clear()
+            return
+        await state.set_state(QuizStates.waiting_for_answer)
+        await state.update_data(
+            words=words,
+            idx=0,
+            correct=[False] * len(words),
+            attempts=[0] * len(words),
+            started_at=time.time(),
+            date=None
+        )
+        await message.answer(f"Yodlangan so'zlar bilan mashq boshlandi! ({len(words)} ta so'z)", reply_markup=ReplyKeyboardRemove())
+        await ask_next_word(message, state)
+    else:
+        await message.answer("Mashq yakunlandi.", reply_markup=ReplyKeyboardRemove())
+        await state.clear()
 
     # Mashq boshlanish vaqtini saqlaymiz
     await state.set_state(QuizStates.waiting_for_answer)

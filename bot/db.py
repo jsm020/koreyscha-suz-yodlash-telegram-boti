@@ -1,3 +1,11 @@
+# Foydalanuvchining known_words dagi so'z id larini olish
+async def get_known_word_ids(pool, user_id):
+    query = """
+    SELECT word_id FROM known_words WHERE user_id = $1
+    """
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(query, user_id)
+        return set(row['word_id'] for row in rows)
 
 
 import os

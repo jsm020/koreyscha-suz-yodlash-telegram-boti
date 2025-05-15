@@ -9,6 +9,8 @@ from aiogram.types import (
     FSInputFile,
     ReplyKeyboardMarkup,
     KeyboardButton,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
 )
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -35,8 +37,23 @@ AUDIO_DIR.mkdir(exist_ok=True)
 router = Router()
 
 # ──────────────────────────── /start ────────────────────────────
+
+# /start komandasi va deep-link handler
 @router.message(Command("start"))
 async def cmd_start(message: Message):
+    # Deep-link orqali kelganmi?
+    if message.text and message.text.strip().startswith("/start repeat_"):
+        # /start repeat_2025-05-10_123456789
+        import re
+        m = re.match(r"/start repeat_(\d{4}-\d{2}-\d{2})_(\d+)", message.text.strip())
+        if m:
+            date, ref_user_id = m.groups()
+            # Do'st uchun shu sanadagi mashqni ochamiz (user_id ni message.from_user.id ga o'zgartiramiz)
+            await message.answer(f"Sizga do'stingiz taklif qilgan {date} sanasidagi mashq ochildi!")
+            # FSM orqali mashqni boshlash
+            state = FSMContext(message.bot, message.from_user.id, message.chat.id)
+            await handle_date_select(message, state, override_date=date)
+            return
     await message.answer(HELP_TEXT)
 
 # ──────────────────────────── /takrorlash ───────────────────────
@@ -58,11 +75,21 @@ async def cmd_takrorlash(message: Message):
         await message.answer("Hech qanday so'z kiritilmagan.")
         return
 
-    buttons = [[KeyboardButton(text=row["created_at"])] for row in dates]
-    markup = ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
-
-    lines = [f"{row['created_at']} – {row['cnt']} ta so'z" for row in dates]
-    await message.answer("Sanani tanlang:\n" + "\n".join(lines), reply_markup=markup)
+    # Inline tugmalar va referal linklar
+    bot_username = (await message.bot.me()).username
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[])
+    lines = []
+    for row in dates:
+        date = row["created_at"]
+        cnt = row["cnt"]
+        # Deep-link: /start repeat_{date}_{user_id}
+        ref_link = f"https://t.me/{bot_username}?start=repeat_{date}_{message.from_user.id}"
+        keyboard.inline_keyboard.append([
+            InlineKeyboardButton(text=f"{date} (do‘stga ulashish)", url=ref_link),
+            InlineKeyboardButton(text=f"{date} (mashq qilish)", callback_data=f"repeat_{date}")
+        ])
+        lines.append(f"{date} – {cnt} ta so'z")
+    await message.answer("Sanani tanlang:\n" + "\n".join(lines), reply_markup=keyboard)
 
 # ──────────────────────────── FSM holatlari ─────────────────────
 class QuizStates(StatesGroup):
@@ -71,10 +98,8 @@ class QuizStates(StatesGroup):
 
 # ──────────────────────────── Sana tanlash ──────────────────────
 @router.message(F.text.regexp(r"^\d{4}-\d{2}-\d{2}$"))
-
-
-async def handle_date_select(message: Message, state: FSMContext):
-    date = message.text.strip()
+async def handle_date_select(message: Message, state: FSMContext, override_date=None):
+    date = override_date if override_date else message.text.strip()
     pool = await db.get_pool()
     user_id = message.from_user.id
     # Foydalanuvchining shu sanadagi so'zlari va ularning eng so'nggi urinish natijasini olamiz
@@ -279,3 +304,14 @@ async def handle_word_pair(message: Message):
 # ──────────────────────────── Router ro‘yxatdan o‘tishi ─────────
 def register_handlers(dp):
     dp.include_router(router)
+
+# Inline tugma uchun callback handler (mashqni ochish)
+from aiogram import types
+@router.callback_query(F.data.regexp(r"^repeat_\d{4}-\d{2}-\d{2}$"))
+async def handle_repeat_callback(callback_query: types.CallbackQuery, state: FSMContext):
+    date = callback_query.data.replace("repeat_", "")
+    # Mashqni ochamiz
+    await callback_query.message.answer(f"{date} sanasidagi mashq boshlandi!")
+    # FSM orqali mashqni boshlash
+    await handle_date_select(callback_query.message, state, override_date=date)
+    await callback_query.answer()

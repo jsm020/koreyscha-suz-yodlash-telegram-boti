@@ -61,7 +61,11 @@ async def add_attempt(pool, word_id, user_id, attempt_count, is_correct):
         return await conn.fetchrow(query, word_id, user_id, attempt_count, is_correct)
 
 # Sanalar bo'yicha so'zlar ro'yxati
+from datetime import datetime, date as dt_date
 async def get_words_by_date(pool, date):
+    # date string bo'lsa, uni date tipiga aylantiramiz
+    if isinstance(date, str):
+        date = datetime.strptime(date, "%Y-%m-%d").date()
     query = "SELECT * FROM words WHERE created_at = $1;"
     async with pool.acquire() as conn:
         return await conn.fetch(query, date)

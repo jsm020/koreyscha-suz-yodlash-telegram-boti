@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS words (
 );
 """
 
+
 CREATE_ATTEMPTS_TABLE = """
 CREATE TABLE IF NOT EXISTS attempts (
     id SERIAL PRIMARY KEY,
@@ -28,6 +29,17 @@ CREATE TABLE IF NOT EXISTS attempts (
     attempt_count INTEGER,
     is_correct BOOLEAN,
     attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+# Known words jadvali
+CREATE_KNOWN_WORDS_TABLE = """
+CREATE TABLE IF NOT EXISTS known_words (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    word_id INTEGER REFERENCES words(id),
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, word_id)
 );
 """
 
@@ -46,11 +58,24 @@ async def close_pool():
         await pool.close()
         pool = None
 
+
 async def init_db():
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute(CREATE_WORDS_TABLE)
         await conn.execute(CREATE_ATTEMPTS_TABLE)
+        await conn.execute(CREATE_KNOWN_WORDS_TABLE)
+
+# Known words ga qo'shish
+async def add_known_word(pool, user_id, word_id):
+    query = """
+    INSERT INTO known_words (user_id, word_id)
+    VALUES ($1, $2)
+    ON CONFLICT (user_id, word_id) DO NOTHING
+    RETURNING id;
+    """
+    async with pool.acquire() as conn:
+        return await conn.fetchrow(query, user_id, word_id)
 
 # So'z qo'shish
 async def add_word(pool, korean, uzbek, romanized, audio_url):

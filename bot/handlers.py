@@ -201,9 +201,13 @@ async def handle_quiz_answer(message: Message, state: FSMContext):
     pool = await db.get_pool()
     await db.add_attempt(pool, words[idx]["id"], user_id, attempts[idx], is_correct)
 
+
     if is_correct:
         correct[idx] = True
         await message.answer("✅ To'g'ri!")
+        # Agar birinchi urinishda to'g'ri topilgan bo'lsa, known_words ga qo'shamiz
+        if attempts[idx] == 1:
+            await db.add_known_word(pool, user_id, words[idx]["id"])
     elif attempts[idx] >= 2:
         await message.answer(f"❌ Noto'g'ri. Keyingi so'zga o'tamiz.")
     else:

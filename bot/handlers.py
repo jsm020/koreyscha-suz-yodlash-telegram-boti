@@ -1,3 +1,5 @@
+import asyncio
+import os
 
 from aiogram import Router, F
 from aiogram.types import Message
@@ -30,44 +32,24 @@ import aiofiles
 
 WORD_PAIR_REGEX = re.compile(r"^([\uac00-\ud7af\w\s]+)\s*\|\s*([\w\s'’\-]+)$")
 
-@router.message()
-async def handle_word_pair(message: Message):
-    match = WORD_PAIR_REGEX.match(message.text.strip())
-    if not match:
-        return  # Faqat so'z juftligi formatiga javob beramiz
-    korean, uzbek = match.groups()
-    romanized = utils.romanize_korean(korean)
-    # Fayl nomini xavfsiz qilish
-    safe_korean = ''.join(c for c in korean if c.isalnum())
-    audio_filename = f"audio_{message.from_user.id}_{safe_korean}.mp3"
-    audio_dir = os.path.join(os.path.dirname(__file__), '..', 'audio')
-    audio_path = os.path.abspath(os.path.join(audio_dir, audio_filename))
-    utils.generate_korean_audio(korean, audio_path)
-    # Audio faylni Telegramga yuklash uchun
-    audio_file = FSInputFile(audio_path)
-    # DBga yozish
-    pool = await db.get_pool()
-    word_row = await db.add_word(pool, korean, uzbek, romanized, audio_filename)
-    await pool.close()
-    await message.answer(f"🇰🇷 {korean}\n🇺🇿 {uzbek}\n✍️ Romanizatsiya: {romanized}")
-    await message.answer_audio(audio_file, caption="Koreyscha talaffuz")
 
 # /takrorlash buyrug'i uchun handler (sanalar ro'yxati va so'zlar)
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from datetime import datetime
 
 @router.message(Command("takrorlash"))
+
 async def cmd_takrorlash(message: Message):
     pool = await db.get_pool()
     # Unikal sanalar ro'yxatini olish
     async with pool.acquire() as conn:
-        dates = await conn.fetch("SELECT created_at, COUNT(*) as cnt FROM words GROUP BY created_at ORDER BY created_at DESC;")
+        dates = await conn.fetch("SELECT to_char(created_at, 'YYYY-MM-DD') as created_at, COUNT(*) as cnt FROM words GROUP BY created_at ORDER BY created_at DESC;")
     await pool.close()
     if not dates:
         await message.answer("Hech qanday so'z kiritilmagan.")
         return
-    # Tugmalar
-    buttons = [[KeyboardButton(text=str(row['created_at'])) for row in dates]]
+    # Tugmalar (har bir sana alohida qatorda)
+    buttons = [[KeyboardButton(text=str(row['created_at']))] for row in dates]
     markup = ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
     text = "Sanani tanlang:\n" + "\n".join([f"{row['created_at']} – {row['cnt']} ta so'z" for row in dates])
     await message.answer(text, reply_markup=markup)
@@ -145,6 +127,31 @@ async def show_quiz_stats(message: Message, state: FSMContext):
     for w, a in zip(words, attempts):
         text += f"{w['korean']} – {w['uzbek']} | Urinishlar: {a}\n"
     await message.answer(text)
+
+
+
+@router.message()
+async def handle_word_pair(message: Message):
+    match = WORD_PAIR_REGEX.match(message.text.strip())
+    if not match:
+        return  # Faqat so'z juftligi formatiga javob beramiz
+    korean, uzbek = match.groups()
+    romanized = utils.romanize_korean(korean)
+    # Fayl nomini xavfsiz qilish
+    safe_korean = ''.join(c for c in korean if c.isalnum())
+    audio_filename = f"audio_{message.from_user.id}_{safe_korean}.mp3"
+    audio_dir = os.path.join(os.path.dirname(__file__), '..', 'audio')
+    audio_path = os.path.abspath(os.path.join(audio_dir, audio_filename))
+    utils.generate_korean_audio(korean, audio_path)
+    # Audio faylni Telegramga yuklash uchun
+    audio_file = FSInputFile(audio_path)
+    # DBga yozish
+    pool = await db.get_pool()
+    word_row = await db.add_word(pool, korean, uzbek, romanized, audio_filename)
+    await pool.close()
+    await message.answer(f"🇰🇷 {korean}\n🇺🇿 {uzbek}\n✍️ Romanizatsiya: {romanized}")
+    await message.answer_audio(audio_file, caption="Koreyscha talaffuz")
+
 
 def register_handlers(dp):
     dp.include_router(router)

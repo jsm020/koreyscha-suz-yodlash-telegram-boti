@@ -17,6 +17,8 @@ from aiogram.fsm.state import State, StatesGroup
 
 from . import db, utils
 from aiogram.types import ReplyKeyboardRemove
+import asyncio
+from aiogram.exceptions import TelegramRetryAfter
 import time
 # ──────────────────────────── Konstantalar ────────────────────────────
 HELP_TEXT = (
@@ -55,7 +57,15 @@ async def cmd_start(message: Message, state: FSMContext):
     await message.answer(HELP_TEXT)
 # Foydalanuvchi kontaktini yuborganda deep-link mashqini boshlash
 
-# ──────────────────────────── /takrorlash ───────────────────────
+
+# ──────────────────────────── Flood control safe sender ─────────────
+async def safe_answer(message, *args, **kwargs):
+    while True:
+        try:
+            return await message.answer(*args, **kwargs)
+        except TelegramRetryAfter as e:
+            await asyncio.sleep(e.retry_after)
+
 @router.message(Command("takrorlash"))
 async def cmd_takrorlash(message: Message):
     pool = await db.get_pool()
@@ -71,7 +81,7 @@ async def cmd_takrorlash(message: Message):
         )
 
     if not dates:
-        await message.answer("Hech qanday so'z kiritilmagan.")
+        await safe_answer(message, "Hech qanday so'z kiritilmagan.")
         return
 
     # Inline tugmalar va referal linklar
@@ -88,7 +98,7 @@ async def cmd_takrorlash(message: Message):
         ])
         # 2-qatorda copy-paste uchun referal link (monospace)
         lines.append(f"{date} – {cnt} ta so'z\n<code>{ref_link}</code>")
-    await message.answer("Sanani tanlang:\n" + "\n".join(lines), reply_markup=keyboard, parse_mode="HTML")
+    await safe_answer(message, "Sanani tanlang:\n" + "\n".join(lines), reply_markup=keyboard, parse_mode="HTML")
 
 # ──────────────────────────── FSM holatlari ─────────────────────
 class QuizStates(StatesGroup):

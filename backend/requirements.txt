@@ -1,7 +1,0 @@
-fastapi>=0.110.0
-uvicorn>=0.23.0
-sqlalchemy>=2.0.0
-fastapi-admin>=1.0.4
-psycopg2-binary>=2.9.0
-python-dotenv>=1.0.0
-redis>=5.0.0

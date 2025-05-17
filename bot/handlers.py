@@ -1,4 +1,44 @@
 # ──────────────────────────── Admin test yaratish ─────────────
+
+import os
+import re
+from pathlib import Path
+
+from aiogram import Router, F
+from aiogram.filters import Command
+from aiogram.types import (
+    Message,
+    FSInputFile,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+
+from . import db, utils
+from aiogram.types import ReplyKeyboardRemove
+import asyncio
+from aiogram.exceptions import TelegramRetryAfter
+import time
+# ──────────────────────────── Konstantalar ────────────────────────────
+HELP_TEXT = (
+    "Assalomu alaykum! 👋\n"
+    "Koreyscha ↔ o‘zbekcha so‘z juftligini quyidagicha yuboring:\n\n"
+    "🇰🇷 so'z | 🇺🇿 tarjima\n"
+    "Misol: 학교 | maktab\n\n"
+    "/takrorlash — kiritilgan so‘zlarni sanasi bo‘yicha ko‘rish va mashq qilish."
+)
+
+WORD_PAIR_REGEX = re.compile(
+    r"^([\uac00-\ud7af\w\s]+)\s*\|\s*([\w\s'’\-]+)$", re.UNICODE
+)
+
+AUDIO_DIR = Path(__file__).resolve().parent.parent / "audio"
+AUDIO_DIR.mkdir(exist_ok=True)
+
+router = Router()
 from aiogram.filters import CommandObject
 
 ADMIN_USER_IDS = [6848884650]  # O'zingizning Telegram user_id ni shu yerga yozing
@@ -40,46 +80,6 @@ async def handle_test_create_date(message: Message, state: FSMContext):
     link = f"https://t.me/{(await message.bot.me()).username}?start={repeat_key}"
     await message.answer(f"Mana sizning test linkingiz:\n{link}", reply_markup=ReplyKeyboardRemove())
     await state.clear()
-import os
-import re
-from pathlib import Path
-
-from aiogram import Router, F
-from aiogram.filters import Command
-from aiogram.types import (
-    Message,
-    FSInputFile,
-    ReplyKeyboardMarkup,
-    KeyboardButton,
-    InlineKeyboardMarkup,
-    InlineKeyboardButton,
-)
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-
-from . import db, utils
-from aiogram.types import ReplyKeyboardRemove
-import asyncio
-from aiogram.exceptions import TelegramRetryAfter
-import time
-# ──────────────────────────── Konstantalar ────────────────────────────
-HELP_TEXT = (
-    "Assalomu alaykum! 👋\n"
-    "Koreyscha ↔ o‘zbekcha so‘z juftligini quyidagicha yuboring:\n\n"
-    "🇰🇷 so'z | 🇺🇿 tarjima\n"
-    "Misol: 학교 | maktab\n\n"
-    "/takrorlash — kiritilgan so‘zlarni sanasi bo‘yicha ko‘rish va mashq qilish."
-)
-
-WORD_PAIR_REGEX = re.compile(
-    r"^([\uac00-\ud7af\w\s]+)\s*\|\s*([\w\s'’\-]+)$", re.UNICODE
-)
-
-AUDIO_DIR = Path(__file__).resolve().parent.parent / "audio"
-AUDIO_DIR.mkdir(exist_ok=True)
-
-router = Router()
-
 # ──────────────────────────── /start ────────────────────────────
 
 # /start komandasi va deep-link handler

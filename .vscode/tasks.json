@@ -1,0 +1,13 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"label": "Run FastAPI backend",
+			"command": "uvicorn main:app --reload",
+			"args": [],
+			"isBackground": true,
+			"group": "build"
+		}
+	]
+}

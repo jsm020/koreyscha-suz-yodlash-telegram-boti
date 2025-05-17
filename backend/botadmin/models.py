@@ -4,7 +4,7 @@ class Word(models.Model):
     id = models.AutoField(primary_key=True)
     korean = models.TextField()
     uzbek = models.TextField()
-    romanized = models.TextField()
+    romanized = models.TextField(blank=True, null=True)
     audio_url = models.TextField(blank=True, null=True)
     created_at = models.DateField()
 
@@ -13,6 +13,17 @@ class Word(models.Model):
 
     def __str__(self):
         return self.korean
+
+    def save(self, *args, **kwargs):
+        from .utils import romanize_korean, generate_audio
+        # Romanizatsiya
+        if not self.romanized:
+            self.romanized = romanize_korean(self.korean)
+        # Audio generatsiya
+        if not self.audio_url:
+            filename = f"{self.korean}.mp3"
+            self.audio_url = generate_audio(self.korean, filename)
+        super().save(*args, **kwargs)
 
 class Attempt(models.Model):
     id = models.AutoField(primary_key=True)

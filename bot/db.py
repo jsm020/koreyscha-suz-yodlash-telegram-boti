@@ -1,3 +1,26 @@
+# Random repeat uchun table
+CREATE_REPEAT_SESSIONS_TABLE = """
+CREATE TABLE IF NOT EXISTS repeat_sessions (
+    id SERIAL PRIMARY KEY,
+    repeat_key TEXT NOT NULL,
+    date DATE NOT NULL,
+    word_ids INTEGER[] NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+# User natijalari uchun table
+CREATE_REPEAT_RESULTS_TABLE = """
+CREATE TABLE IF NOT EXISTS repeat_results (
+    id SERIAL PRIMARY KEY,
+    repeat_key TEXT NOT NULL,
+    user_id BIGINT NOT NULL,
+    word_id INTEGER NOT NULL,
+    is_correct BOOLEAN,
+    attempt_count INTEGER,
+    finished_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
 # Foydalanuvchining known_words dagi so'z id larini olish
 async def get_known_word_ids(pool, user_id):
     query = """
@@ -73,6 +96,46 @@ async def init_db():
         await conn.execute(CREATE_WORDS_TABLE)
         await conn.execute(CREATE_ATTEMPTS_TABLE)
         await conn.execute(CREATE_KNOWN_WORDS_TABLE)
+        await conn.execute(CREATE_REPEAT_SESSIONS_TABLE)
+        await conn.execute(CREATE_REPEAT_RESULTS_TABLE)
+# Random repeat uchun session yaratish yoki olish
+import random
+async def get_or_create_repeat_session(pool, repeat_key, date, n=10):
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM repeat_sessions WHERE repeat_key = $1", repeat_key)
+        if row:
+            return list(row['word_ids'])
+        # So'zlarni random tanlaymiz
+        words = await conn.fetch("SELECT id FROM words WHERE created_at = $1", date)
+        word_ids = [w['id'] for w in words]
+        random.shuffle(word_ids)
+        word_ids = word_ids[:n]
+        await conn.execute(
+            "INSERT INTO repeat_sessions (repeat_key, date, word_ids) VALUES ($1, $2, $3)",
+            repeat_key, date, word_ids
+        )
+        return word_ids
+
+# User natijasini saqlash
+async def save_repeat_result(pool, repeat_key, user_id, word_id, is_correct, attempt_count):
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO repeat_results (repeat_key, user_id, word_id, is_correct, attempt_count)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (repeat_key, user_id, word_id) DO UPDATE
+            SET is_correct = $4, attempt_count = $5, finished_at = CURRENT_TIMESTAMP
+            """,
+            repeat_key, user_id, word_id, is_correct, attempt_count
+        )
+
+# User natijalarini olish
+async def get_repeat_results(pool, repeat_key, user_id):
+    async with pool.acquire() as conn:
+        return await conn.fetch(
+            "SELECT * FROM repeat_results WHERE repeat_key = $1 AND user_id = $2",
+            repeat_key, user_id
+        )
 
 # Known words ga qo'shish
 async def add_known_word(pool, user_id, word_id):

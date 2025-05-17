@@ -1,3 +1,45 @@
+# ──────────────────────────── Admin test yaratish ─────────────
+from aiogram.filters import CommandObject
+
+ADMIN_USER_IDS = [6848884650]  # O'zingizning Telegram user_id ni shu yerga yozing
+
+class TestCreateStates(StatesGroup):
+    waiting_for_date = State()
+
+@router.message(Command("create_test"))
+async def cmd_create_test(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_USER_IDS:
+        await message.answer("Faqat admin test yaratishi mumkin.")
+        return
+    # Sanalar ro'yxatini chiqaramiz
+    pool = await db.get_pool()
+    async with pool.acquire() as conn:
+        dates = await conn.fetch(
+            """
+            SELECT to_char(created_at, 'YYYY-MM-DD') AS created_at, COUNT(*) AS cnt
+            FROM words
+            GROUP BY created_at
+            ORDER BY created_at DESC;
+            """
+        )
+    if not dates:
+        await message.answer("Hech qanday sana topilmadi.")
+        return
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=row['created_at'])] for row in dates],
+        resize_keyboard=True
+    )
+    await state.set_state(TestCreateStates.waiting_for_date)
+    await message.answer("Qaysi sanadagi so'zlardan test yarataylik?", reply_markup=keyboard)
+
+@router.message(TestCreateStates.waiting_for_date)
+async def handle_test_create_date(message: Message, state: FSMContext):
+    date = message.text.strip()
+    # Deeplink uchun random key (admin user id bilan)
+    repeat_key = f"repeat_{date}_{message.from_user.id}"
+    link = f"https://t.me/{(await message.bot.me()).username}?start={repeat_key}"
+    await message.answer(f"Mana sizning test linkingiz:\n{link}", reply_markup=ReplyKeyboardRemove())
+    await state.clear()
 import os
 import re
 from pathlib import Path
@@ -41,6 +83,7 @@ router = Router()
 # ──────────────────────────── /start ────────────────────────────
 
 # /start komandasi va deep-link handler
+# /start komandasi va deep-link handler
 @router.message(Command("start"))
 async def cmd_start(message: Message, state: FSMContext):
     # Deep-link orqali kelganmi?
@@ -49,10 +92,34 @@ async def cmd_start(message: Message, state: FSMContext):
         m = re.match(r"/start repeat_(\d{4}-\d{2}-\d{2})_(\d+)", message.text.strip())
         if m:
             date, ref_user_id = m.groups()
-            # Kontakt so'rash tugmasi
-            await state.update_data(ref_date=date)
-            await message.answer("Mashq boshlanmoqda...", reply_markup=ReplyKeyboardRemove())
-            await handle_date_select(message, state, override_date=date)
+            repeat_key = f"repeat_{date}_{ref_user_id}"
+            from datetime import datetime
+            d = datetime.strptime(date, "%Y-%m-%d").date()
+            pool = await db.get_pool()
+            # 10 ta random so'z id larini sessiondan yoki yaratib olamiz
+            word_ids = await db.get_or_create_repeat_session(pool, repeat_key, d, n=10)
+            # So'zlarni ids bo'yicha tartibda olamiz
+            if not word_ids:
+                await message.answer("Bu sana uchun so'zlar topilmadi.")
+                return
+            q = "SELECT * FROM words WHERE id = ANY($1::int[])"
+            async with pool.acquire() as conn:
+                all_words = await conn.fetch(q, word_ids)
+            # id tartibida joylash
+            id2word = {w['id']: dict(w) for w in all_words}
+            words = [id2word[i] for i in word_ids if i in id2word]
+            await state.set_state(QuizStates.waiting_for_answer)
+            await state.update_data(
+                words=words,
+                idx=0,
+                correct=[False] * len(words),
+                attempts=[0] * len(words),
+                started_at=time.time(),
+                date=date,
+                repeat_key=repeat_key
+            )
+            await message.answer("Random mashq boshlandi! (10 ta so'z)", reply_markup=ReplyKeyboardRemove())
+            await ask_next_word(message, state)
             return
     await message.answer(HELP_TEXT)
 # Foydalanuvchi kontaktini yuborganda deep-link mashqini boshlash
@@ -276,6 +343,8 @@ async def handle_quiz_answer(message: Message, state: FSMContext):
     words, correct, attempts = data["words"], data["correct"], data["attempts"]
 
     user_id = message.from_user.id
+    data = await state.get_data()
+    repeat_key = data.get("repeat_key")
 
     # Endi foydalanuvchi koreyscha yozadi, to'g'ri javob ham koreyscha bo'ladi
     answer = message.text.strip()
@@ -286,7 +355,9 @@ async def handle_quiz_answer(message: Message, state: FSMContext):
 
     pool = await db.get_pool()
     await db.add_attempt(pool, words[idx]["id"], user_id, attempts[idx], is_correct)
-
+    # Agar repeat_key bor bo'lsa, natijani ham saqlaymiz
+    if repeat_key:
+        await db.save_repeat_result(pool, repeat_key, user_id, words[idx]["id"], is_correct, attempts[idx])
 
     if is_correct:
         correct[idx] = True

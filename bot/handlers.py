@@ -327,13 +327,9 @@ async def ask_next_word(message: Message, state: FSMContext):
             )
             return
     # Agar yuqoridagi sikl hech qachon ishlamasa, ya'ni barcha so'zlar tugagan bo'lsa:
+    # show_quiz_stats chaqirilgandan so'ng state.clear() qilinadi, shuning uchun yana chaqirish shart emas
     await show_quiz_stats(message, state)
-    await state.clear()
-
-    # Hamma so'zlar to'g'ri topildimi yoki 2 martadan ko'p noto'g'ri topilganlar bormi?
-    # Endi 2 martadan ko'p noto'g'ri topilganlarni yakuniy statistikaga qo'shish
-    await show_quiz_stats(message, state)
-    await state.clear()
+    # await state.clear()  # show_quiz_stats ichida clear qilinmaydi, shuning uchun faqat bir marta chaqiramiz
 
 # ──────────────────────────── Javob tekshirish ──────────────────
 @router.message(QuizStates.waiting_for_answer)
@@ -377,11 +373,38 @@ async def handle_quiz_answer(message: Message, state: FSMContext):
 async def show_quiz_stats(message: Message, state: FSMContext):
     import time
     data = await state.get_data()
+    # Agar 'words' yo'q bo'lsa, statistikani ko'rsatmaymiz
+    if not all(k in data for k in ("words", "attempts", "correct")):
+        await message.answer("Statistika uchun ma'lumot topilmadi.")
+        await state.clear()
+        return
+
     words, attempts, correct = data["words"], data["attempts"], data["correct"]
     started_at = data.get("started_at")
     date = data.get("date")
     finished_at = time.time()
     duration = finished_at - started_at if started_at else 0
+
+    # Agar repeat_key bor bo'lsa va user admin emas bo'lsa, adminlarga natija yuboriladi
+    repeat_key = data.get("repeat_key")
+    user_id = message.from_user.id
+    if repeat_key and user_id not in ADMIN_USER_IDS:
+        correct_count = sum(1 for ok in correct if ok)
+        total = len(words)
+        user_mention = message.from_user.mention_html() if hasattr(message.from_user, 'mention_html') else f"<a href='tg://user?id={user_id}'>User</a>"
+        admin_text = (
+            f"Test natijasi:\n"
+            f"Foydalanuvchi: {user_mention} (ID: {user_id})\n"
+            f"Test: {repeat_key}\n"
+            f"To'g'ri javoblar: {correct_count} / {total}\n"
+            f"Urinishlar: {sum(attempts)}\n"
+            f"Vaqt: {int(duration)} soniya."
+        )
+        for admin_id in ADMIN_USER_IDS:
+            try:
+                await message.bot.send_message(admin_id, admin_text, parse_mode="HTML")
+            except Exception:
+                pass
 
     lines = []
     correct_count = 0

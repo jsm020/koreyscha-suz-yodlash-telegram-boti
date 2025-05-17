@@ -239,26 +239,24 @@ async def ask_next_word(message: Message, state: FSMContext):
     for idx, (ok, att) in enumerate(zip(correct, attempts)):
         if not ok and att < 2:
             await state.update_data(idx=idx)
-            romanized = words[idx].get('romanized')
-            if not romanized:
-                from . import utils
-                romanized = utils.romanize_korean(words[idx]['korean'])
+            # Endi so'zni o'zbekcha chiqaramiz, foydalanuvchi koreyscha yozadi
+            uzbek = words[idx].get('uzbek')
             # Progress jadvali (har 5 ta so'zdan keyin yangi qatordan)
             progress = []
             for i, w in enumerate(words):
                 if correct[i]:
-                    progress.append(f"✅ {w['korean']}")
+                    progress.append(f"✅ {w['uzbek']}")
                 elif attempts[i] >= 2:
-                    progress.append(f"❌ {w['korean']}")
+                    progress.append(f"❌ {w['uzbek']}")
                 else:
-                    progress.append(f"⬜️ {w['korean']}")
+                    progress.append(f"⬜️ {w['uzbek']}")
             # 5 tadan keyin yangi qatordan chiqarish
             progress_lines = []
             for i in range(0, len(progress), 5):
                 progress_lines.append(' '.join(progress[i:i+5]))
             progress_str = '\n'.join(progress_lines)
             await message.answer(
-                f"✍️ Tarjima yozing: {words[idx]['korean']} ({romanized})\n\nProgress:\n{progress_str}"
+                f"✍️ Tarjima yozing: {uzbek} (koreyscha harflarda)\n\nProgress:\n{progress_str}"
             )
             return
 
@@ -275,8 +273,10 @@ async def handle_quiz_answer(message: Message, state: FSMContext):
     words, correct, attempts = data["words"], data["correct"], data["attempts"]
 
     user_id = message.from_user.id
-    answer = message.text.strip().lower()
-    true_answer = words[idx]["uzbek"].strip().lower()
+
+    # Endi foydalanuvchi koreyscha yozadi, to'g'ri javob ham koreyscha bo'ladi
+    answer = message.text.strip()
+    true_answer = words[idx]["korean"].strip()
 
     attempts[idx] += 1
     is_correct = answer == true_answer
@@ -362,30 +362,50 @@ async def show_quiz_stats(message: Message, state: FSMContext):
     await message.answer(f"Oldingi mashqda to'g'ri topilgan so'zlar: {prev_correct} ta.")
 
 # ──────────────────────────── So‘z juftligini qabul qilish ─────
+
+# Universal handler: so'z juftligi yoki o'zbekcha so'rov
 @router.message()
-async def handle_word_pair(message: Message):
-    match = WORD_PAIR_REGEX.match(message.text.strip())
-    if not match:
+async def handle_word_pair_or_uzbek_query(message: Message):
+    text = message.text.strip()
+    match = WORD_PAIR_REGEX.match(text)
+    if match:
+        korean, uzbek = match.groups()
+        romanized = utils.romanize_korean(korean)
+
+        safe_korean = "".join(c for c in korean if c.isalnum())
+        audio_filename = f"audio_{message.from_user.id}_{safe_korean}.mp3"
+        audio_path = AUDIO_DIR / audio_filename
+
+        utils.generate_korean_audio(korean, str(audio_path))
+
+        audio_file = FSInputFile(str(audio_path))
+
+        pool = await db.get_pool()
+        await db.add_word(pool, korean, uzbek, romanized, audio_filename)
+
+        await safe_answer(
+            message,
+            f"🇰🇷 {korean}\n🇺🇿 {uzbek}\n✍️ Romanizatsiya: {romanized}"
+        )
+        await message.answer_audio(audio_file, caption="Koreyscha talaffuz")
         return
 
-    korean, uzbek = match.groups()
-    romanized = utils.romanize_korean(korean)
-
-    safe_korean = "".join(c for c in korean if c.isalnum())
-    audio_filename = f"audio_{message.from_user.id}_{safe_korean}.mp3"
-    audio_path = AUDIO_DIR / audio_filename
-
-    utils.generate_korean_audio(korean, str(audio_path))
-
-    audio_file = FSInputFile(str(audio_path))
-
-    pool = await db.get_pool()
-    await db.add_word(pool, korean, uzbek, romanized, audio_filename)
-
-    await message.answer(
-        f"🇰🇷 {korean}\n🇺🇿 {uzbek}\n✍️ Romanizatsiya: {romanized}"
-    )
-    await message.answer_audio(audio_file, caption="Koreyscha talaffuz")
+    # O'zbekcha so'rov: faqat harf va bo'shliqdan iborat bo'lsa, so'rov deb hisoblaymiz
+    uzbek_query = text.lower()
+    if re.match(r"^[a-zA-Zа-яА-Яёғқўҳүўӣӣўқҳ\s'’\-]+$", uzbek_query):
+        pool = await db.get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT korean, romanized FROM words WHERE LOWER(uzbek) = $1 ORDER BY id DESC LIMIT 1",
+                uzbek_query
+            )
+        if row:
+            await safe_answer(
+                message,
+                f"🇺🇿 {uzbek_query}\n🇰🇷 {row['korean']}\n✍️ Romanizatsiya: {row['romanized']}"
+            )
+        else:
+            await safe_answer(message, "Bu so'z uchun koreyscha tarjima topilmadi.")
 
 # ──────────────────────────── Router ro‘yxatdan o‘tishi ─────────
 def register_handlers(dp):

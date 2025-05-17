@@ -1,221 +1,112 @@
-# Random repeat uchun table
-CREATE_REPEAT_SESSIONS_TABLE = """
-CREATE TABLE IF NOT EXISTS repeat_sessions (
-    id SERIAL PRIMARY KEY,
-    repeat_key TEXT NOT NULL,
-    date DATE NOT NULL,
-    word_ids INTEGER[] NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-"""
-
-# User natijalari uchun table
-CREATE_REPEAT_RESULTS_TABLE = """
-CREATE TABLE IF NOT EXISTS repeat_results (
-    id SERIAL PRIMARY KEY,
-    repeat_key TEXT NOT NULL,
-    user_id BIGINT NOT NULL,
-    word_id INTEGER NOT NULL,
-    is_correct BOOLEAN,
-    attempt_count INTEGER,
-    finished_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-"""
-# Foydalanuvchining known_words dagi so'z id larini olish
-async def get_known_word_ids(pool, user_id):
-    query = """
-    SELECT word_id FROM known_words WHERE user_id = $1
-    """
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(query, user_id)
-        return set(row['word_id'] for row in rows)
-
-
 import os
-import asyncpg
-from dotenv import load_dotenv
-from datetime import datetime
+import httpx
 
-load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-# So'zlar jadvali va attempts jadvali uchun SQL
-CREATE_WORDS_TABLE = """
-CREATE TABLE IF NOT EXISTS words (
-    id SERIAL PRIMARY KEY,
-    korean TEXT NOT NULL,
-    uzbek TEXT NOT NULL,
-    romanized TEXT NOT NULL,
-    audio_url TEXT,
-    created_at DATE DEFAULT CURRENT_DATE
-);
-"""
-
-
-CREATE_ATTEMPTS_TABLE = """
-CREATE TABLE IF NOT EXISTS attempts (
-    id SERIAL PRIMARY KEY,
-    word_id INTEGER REFERENCES words(id),
-    user_id BIGINT,
-    attempt_count INTEGER,
-    is_correct BOOLEAN,
-    attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-"""
-
-# Known words jadvali
-CREATE_KNOWN_WORDS_TABLE = """
-CREATE TABLE IF NOT EXISTS known_words (
-    id SERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    word_id INTEGER REFERENCES words(id),
-    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, word_id)
-);
-"""
-
-# Global pool
-pool = None
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000/api/")
 
 async def get_pool():
-    global pool
-    if pool is None:
-        pool = await asyncpg.create_pool(DATABASE_URL)
-    return pool
+    return None  # Legacy, not used
 
 async def close_pool():
-    global pool
-    if pool is not None:
-        await pool.close()
-        pool = None
+    return None  # Legacy, not used
 
+# Foydalanuvchining known_words dagi so'z id larini olish
+async def get_known_word_ids(pool, user_id):
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{BACKEND_URL}knownwords/?user_id={user_id}")
+        resp.raise_for_status()
+        data = resp.json()
+        return set([item['word'] for item in data])
 
-async def init_db():
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute(CREATE_WORDS_TABLE)
-        await conn.execute(CREATE_ATTEMPTS_TABLE)
-        await conn.execute(CREATE_KNOWN_WORDS_TABLE)
-        await conn.execute(CREATE_REPEAT_SESSIONS_TABLE)
-        await conn.execute(CREATE_REPEAT_RESULTS_TABLE)
+# So'z qo'shish
+async def add_word(pool, korean, uzbek, romanized, audio_url):
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(f"{BACKEND_URL}words/", json={
+            "korean": korean,
+            "uzbek": uzbek,
+            "romanized": romanized,
+            "audio_url": audio_url
+        })
+        resp.raise_for_status()
+        return resp.json()
+
+# Attempts qo'shish
+async def add_attempt(pool, word_id, user_id, attempt_count, is_correct):
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(f"{BACKEND_URL}add_attempt/", json={
+            "word": word_id,
+            "user_id": user_id,
+            "attempt_count": attempt_count,
+            "is_correct": is_correct
+        })
+        resp.raise_for_status()
+        return resp.json()
+
+# Known words ga qo'shish
+async def add_known_word(pool, user_id, word_id):
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(f"{BACKEND_URL}add_known_word/", json={
+            "user_id": user_id,
+            "word": word_id
+        })
+        resp.raise_for_status()
+        return resp.json()
+
+# Sanalar bo'yicha so'zlar ro'yxati
+async def get_words_by_date(pool, date, user_id=None):
+    params = {"date": str(date)}
+    if user_id is not None:
+        params["user_id"] = user_id
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{BACKEND_URL}words_by_date/", params=params)
+        resp.raise_for_status()
+        return resp.json()
+
+# Foydalanuvchi va sana bo'yicha attempts statistikasi
+async def get_attempts_by_user_and_date(pool, user_id, date):
+    params = {"user_id": user_id, "date": str(date)}
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{BACKEND_URL}attempts_by_user_and_date/", params=params)
+        resp.raise_for_status()
+        return resp.json()
+
 # Random repeat uchun session yaratish yoki olish
-import random
 async def get_or_create_repeat_session(pool, repeat_key, date, n=10):
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT * FROM repeat_sessions WHERE repeat_key = $1", repeat_key)
-        if row:
-            return list(row['word_ids'])
-        # So'zlarni random tanlaymiz
-        words = await conn.fetch("SELECT id FROM words WHERE created_at = $1", date)
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{BACKEND_URL}repeatsessions/?repeat_key={repeat_key}")
+        if resp.status_code == 200 and resp.json():
+            return resp.json()[0]['word_ids']
+        # So'zlarni random olish uchun API orqali olamiz
+        words = await get_words_by_date(pool, date)
+        import random
         word_ids = [w['id'] for w in words]
         random.shuffle(word_ids)
         word_ids = word_ids[:n]
-        await conn.execute(
-            "INSERT INTO repeat_sessions (repeat_key, date, word_ids) VALUES ($1, $2, $3)",
-            repeat_key, date, word_ids
-        )
+        # Yangi session yaratamiz
+        resp2 = await client.post(f"{BACKEND_URL}add_repeat_session/", json={
+            "repeat_key": repeat_key,
+            "date": str(date),
+            "word_ids": word_ids
+        })
+        resp2.raise_for_status()
         return word_ids
 
 # User natijasini saqlash
 async def save_repeat_result(pool, repeat_key, user_id, word_id, is_correct, attempt_count):
-    async with pool.acquire() as conn:
-        await conn.execute(
-            """
-            INSERT INTO repeat_results (repeat_key, user_id, word_id, is_correct, attempt_count)
-            VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT (repeat_key, user_id, word_id) DO UPDATE
-            SET is_correct = $4, attempt_count = $5, finished_at = CURRENT_TIMESTAMP
-            """,
-            repeat_key, user_id, word_id, is_correct, attempt_count
-        )
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(f"{BACKEND_URL}add_repeat_result/", json={
+            "repeat_key": repeat_key,
+            "user_id": user_id,
+            "word": word_id,
+            "is_correct": is_correct,
+            "attempt_count": attempt_count
+        })
+        resp.raise_for_status()
+        return resp.json()
 
 # User natijalarini olish
 async def get_repeat_results(pool, repeat_key, user_id):
-    async with pool.acquire() as conn:
-        return await conn.fetch(
-            "SELECT * FROM repeat_results WHERE repeat_key = $1 AND user_id = $2",
-            repeat_key, user_id
-        )
-
-# Known words ga qo'shish
-async def add_known_word(pool, user_id, word_id):
-    query = """
-    INSERT INTO known_words (user_id, word_id)
-    VALUES ($1, $2)
-    ON CONFLICT (user_id, word_id) DO NOTHING
-    RETURNING id;
-    """
-    async with pool.acquire() as conn:
-        return await conn.fetchrow(query, user_id, word_id)
-
-# So'z qo'shish
-async def add_word(pool, korean, uzbek, romanized, audio_url):
-    query = """
-    INSERT INTO words (korean, uzbek, romanized, audio_url)
-    VALUES ($1, $2, $3, $4)
-    RETURNING id, created_at;
-    """
-    async with pool.acquire() as conn:
-        return await conn.fetchrow(query, korean, uzbek, romanized, audio_url)
-
-# Attempts qo'shish
-async def add_attempt(pool, word_id, user_id, attempt_count, is_correct):
-    query = """
-    INSERT INTO attempts (word_id, user_id, attempt_count, is_correct)
-    VALUES ($1, $2, $3, $4)
-    RETURNING id;
-    """
-    async with pool.acquire() as conn:
-        return await conn.fetchrow(query, word_id, user_id, attempt_count, is_correct)
-
-# Sanalar bo'yicha so'zlar ro'yxati
-from datetime import datetime, date as dt_date
-import random
-async def get_words_by_date(pool, date, user_id=None):
-    # date string bo'lsa, uni date tipiga aylantiramiz
-    if isinstance(date, str):
-        date = datetime.strptime(date, "%Y-%m-%d").date()
-    query = "SELECT * FROM words WHERE created_at = $1;"
-    async with pool.acquire() as conn:
-        words = await conn.fetch(query, date)
-        # Agar user_id berilgan bo'lsa, attempts soni bo'yicha tartiblash
-        if user_id is not None:
-            # Har bir so'z uchun attempts sonini topamiz
-            word_ids = [w['id'] for w in words]
-            if word_ids:
-                attempts_query = f"""
-                    SELECT word_id, COUNT(*) as cnt
-                    FROM attempts
-                    WHERE user_id = $1 AND word_id = ANY($2::int[])
-                    GROUP BY word_id
-                """
-                attempts = await conn.fetch(attempts_query, user_id, word_ids)
-                attempts_map = {a['word_id']: a['cnt'] for a in attempts}
-                # So'zlarni attempts soni bo'yicha kamayish tartibida, so'ng random aralashtiramiz
-                words = sorted(words, key=lambda w: (-attempts_map.get(w['id'], 0), random.random()))
-            else:
-                random.shuffle(words)
-        else:
-            random.shuffle(words)
-        return words
-
-# Foydalanuvchi va sana bo'yicha attempts statistikasi
-async def get_attempts_by_user_and_date(pool, user_id, date):
-    # Har bir so'z uchun eng so'nggi urinishni olish
-    query = """
-    SELECT w.korean, w.uzbek, a.attempt_count, a.is_correct, a.word_id, a.attempted_at
-    FROM attempts a
-    JOIN words w ON a.word_id = w.id
-    WHERE a.user_id = $1 AND w.created_at = $2
-    ORDER BY a.word_id, a.attempted_at DESC
-    """
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(query, user_id, date)
-        # Har bir word_id uchun faqat eng so'nggi urinishni olish
-        last_attempts = {}
-        for row in rows:
-            wid = row['word_id']
-            if wid not in last_attempts:
-                last_attempts[wid] = row
-        return list(last_attempts.values())
-
+    params = {"repeat_key": repeat_key, "user_id": user_id}
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{BACKEND_URL}repeat_results_by_user_and_key/", params=params)
+        resp.raise_for_status()
+        return resp.json()

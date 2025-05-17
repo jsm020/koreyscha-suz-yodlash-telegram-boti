@@ -10,4 +10,4 @@ class WordCreate(WordBase):
 class WordOut(WordBase):
     id: int
     class Config:
-        orm_mode = True
+        from_attributes = True

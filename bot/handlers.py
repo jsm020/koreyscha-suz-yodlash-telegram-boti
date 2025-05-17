@@ -239,7 +239,6 @@ async def ask_next_word(message: Message, state: FSMContext):
     for idx, (ok, att) in enumerate(zip(correct, attempts)):
         if not ok and att < 2:
             await state.update_data(idx=idx)
-            # Endi so'zni o'zbekcha chiqaramiz, foydalanuvchi koreyscha yozadi
             uzbek = words[idx].get('uzbek')
             # Progress jadvali (har 5 ta so'zdan keyin yangi qatordan)
             progress = []
@@ -255,10 +254,14 @@ async def ask_next_word(message: Message, state: FSMContext):
             for i in range(0, len(progress), 5):
                 progress_lines.append(' '.join(progress[i:i+5]))
             progress_str = '\n'.join(progress_lines)
+            # Yangi savol yuborilgandan so'ng, qaytmasdan funksiya yakunlansin
             await message.answer(
                 f"✍️ Tarjima yozing: {uzbek} (koreyscha harflarda)\n\nProgress:\n{progress_str}"
             )
             return
+    # Agar yuqoridagi sikl hech qachon ishlamasa, ya'ni barcha so'zlar tugagan bo'lsa:
+    await show_quiz_stats(message, state)
+    await state.clear()
 
     # Hamma so'zlar to'g'ri topildimi yoki 2 martadan ko'p noto'g'ri topilganlar bormi?
     # Endi 2 martadan ko'p noto'g'ri topilganlarni yakuniy statistikaga qo'shish

@@ -17,7 +17,7 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path, include
-from botadmin.api import router as botadmin_router
+from botadmin.urls import router as botadmin_router
 
 urlpatterns = [
     path("admin/", admin.site.urls),

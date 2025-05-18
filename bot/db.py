@@ -28,17 +28,17 @@ async def get_known_word_ids(pool, user_id):
         return set([item['word'] for item in data])
 
 
-# So‘z qo‘shish
-async def add_word(pool, korean, uzbek, romanized, audio_url):
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(f"{BACKEND_URL}words/", json={
-            "korean": korean,
-            "uzbek": uzbek,
-            "romanized": romanized,
-            "audio_url": audio_url
-        })
-        resp.raise_for_status()
-        return resp.json()
+# # So‘z qo‘shish
+# async def add_word(pool, korean, uzbek, romanized, audio_url):
+#     async with httpx.AsyncClient() as client:
+#         resp = await client.post(f"{BACKEND_URL}words/", json={
+#             "korean": korean,
+#             "uzbek": uzbek,
+#             "romanized": romanized,
+#             "audio_url": audio_url
+#         })
+#         resp.raise_for_status()
+#         return resp.json()
 
 
 # Attempt qo‘shish

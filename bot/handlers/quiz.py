@@ -119,6 +119,9 @@ async def handle_quiz_answer(message: Message, state: FSMContext):
 
 @router.message(QuizStates.waiting_for_known_words_confirm)
 async def handle_known_words_confirm(message: Message, state: FSMContext):
+    data = await state.get_data()
+    category = data.get("date")
+
     javob = message.text.strip().lower()
     if javob not in ["ha", "yo'q", "yo‘q", "yoq"]:
         await message.answer("Iltimos, faqat 'Ha' yoki 'Yo'q' deb javob bering.")
@@ -127,7 +130,7 @@ async def handle_known_words_confirm(message: Message, state: FSMContext):
     if javob.startswith("ha"):
         user_id = message.from_user.id
         known_word_ids = await db.get_known_word_ids(None, user_id)
-        all_words = await db.get_words_by_date(None, None)
+        all_words = await db.get_words_by_date(None, category)
         words = [dict(w) for w in all_words if w['id'] in known_word_ids]
 
         import random

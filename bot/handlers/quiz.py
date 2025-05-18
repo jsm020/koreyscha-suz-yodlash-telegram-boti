@@ -17,14 +17,9 @@ class QuizStates(StatesGroup):
 @router.message(F.text.regexp(r"^\d{4}-\d{2}-\d{2}$"))
 async def handle_date_select(message: Message, state: FSMContext, override_date=None):
     date = override_date if override_date else message.text.strip()
-    try:
-        d = datetime.strptime(date, "%Y-%m-%d").date()
-    except ValueError:
-        await message.answer("❌ Sana formati noto‘g‘ri. Format: YYYY-MM-DD")
-        return
 
     user_id = message.from_user.id
-    all_attempts = await db.get_attempts_by_user_and_date(None, user_id, d)
+    all_attempts = await db.get_attempts_by_user_and_category(None, user_id, date)
     wrong_word_ids = {row['word_id'] for row in all_attempts if not row['is_correct']}
     attempts_count = {row['word_id']: row['attempt_count'] for row in all_attempts if not row['is_correct']}
     known_word_ids = await db.get_known_word_ids(None, user_id)
@@ -159,6 +154,12 @@ async def handle_known_words_confirm(message: Message, state: FSMContext):
         await message.answer("Mashq yakunlandi.", reply_markup=ReplyKeyboardRemove())
         await state.clear()
 
+import os
+import time
+from aiogram.types import FSInputFile
+from ..plot_utils import plot_progress_bar
+from .. import db  # db modulni import qilganingizga ishonch hosil qiling
+
 async def show_quiz_stats(message: Message, state: FSMContext):
     data = await state.get_data()
     words = data["words"]
@@ -170,7 +171,10 @@ async def show_quiz_stats(message: Message, state: FSMContext):
 
     lines = []
     correct_count = 0
+
     for w, a, ok in zip(words, attempts, correct):
+        # ✅ Natijani bazaga saqlash (agar session bor bo‘lsa)
+
         if ok:
             lines.append(f"✅ {w['korean']} – {w['uzbek']} | {a} urinishda")
             correct_count += 1
@@ -183,8 +187,8 @@ async def show_quiz_stats(message: Message, state: FSMContext):
         parse_mode="HTML"
     )
 
+    # 📊 Grafik
     try:
-        from ..plot_utils import plot_progress_bar
         images_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'images')
         os.makedirs(images_dir, exist_ok=True)
         img_path = os.path.join(images_dir, f'progress_{user_id}.png')

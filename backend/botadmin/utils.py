@@ -2,10 +2,14 @@ import os
 from gtts import gTTS
 from django.conf import settings
 
+from hangul_romanize import Transliter
+from hangul_romanize.rule import academic
+
+# Transliter obyektini yaratamiz (1 marta)
+transliter = Transliter(academic)
 
 def romanize_korean(korean_word):
-    # TODO: haqiqiy romanizatsiya kutubxonasini ulang
-    return korean_word  # Hozircha faqat qaytaradi
+    return transliter.translit(korean_word)
 
 
 def generate_audio_file(korean_word, filename):

@@ -14,6 +14,38 @@ from .serializers import (
 )
 
 import random
+from rest_framework import viewsets
+from .models import Category
+from .serializers import CategorySerializer
+
+
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from .models import Word
+from .serializers import WordSerializer
+class CategoryByNameAPIView(APIView):
+    def get(self, request):
+        name = request.query_params.get("name")
+        if not name:
+            return Response({"error": "name parametri kerak"}, status=400)
+
+        categories = Category.objects.filter(name=name)
+        serializer = CategorySerializer(categories, many=True)
+        return Response(serializer.data)
+class WordsByCategoryAPIView(APIView):
+    def get(self, request):
+        category_name = request.query_params.get('category')
+        if not category_name:
+            return Response({"error": "category parametri kerak"}, status=400)
+
+        words = Word.objects.filter(category__name=category_name)
+        serializer = WordSerializer(words, many=True)
+        return Response(serializer.data)
+
+class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Category.objects.all().order_by('-created_at')
+    serializer_class = CategorySerializer
 
 
 # --- CREATE APIs (POST) ---
@@ -32,9 +64,21 @@ class AddAttemptAPIView(generics.CreateAPIView):
     serializer_class = AttemptSerializer
 
 
-class AddKnownWordAPIView(generics.CreateAPIView):
-    queryset = KnownWord.objects.all()
-    serializer_class = KnownWordSerializer
+class AddKnownWordAPIView(APIView):
+    def post(self, request):
+        user_id = request.data.get("user_id")
+        word_id = request.data.get("word")
+
+        # Agar mavjud bo‘lsa, 200 qaytaramiz
+        if KnownWord.objects.filter(user_id=user_id, word_id=word_id).exists():
+            return Response({"message": "Allaqachon mavjud"}, status=200)
+
+        serializer = KnownWordSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=201)
+        return Response(serializer.errors, status=400)
+
 
 
 # --- GET APIs ---
@@ -54,24 +98,33 @@ class RepeatResultsByUserAndKeyAPIView(APIView):
         return Response(serializer.data)
 
 
-class AttemptsByUserAndDateAPIView(APIView):
+
+class AttemptsByUserAndCategoryAPIView(APIView):
     def get(self, request):
         user_id = request.query_params.get('user_id')
-        date_str = request.query_params.get('date')
+        category_name = request.query_params.get('category')
 
-        if not user_id or not date_str:
-            return Response({'error': 'user_id and date are required'}, status=400)
+        if not user_id or not category_name:
+            return Response({'error': 'user_id and category are required'}, status=400)
 
-        date = parse_date(date_str)
-        if not date:
-            return Response({'error': 'Invalid date'}, status=400)
+        try:
+            user_id = int(user_id)
+        except ValueError:
+            return Response({'error': 'Invalid user_id'}, status=400)
+
+        try:
+            category = Category.objects.get(name=category_name)
+        except Category.DoesNotExist:
+            return Response({'error': 'Category not found'}, status=404)
+
+        word_ids = Word.objects.filter(category=category).values_list('id', flat=True)
 
         attempts = Attempt.objects.filter(
             user_id=user_id,
-            word__created_at=date
+            word_id__in=word_ids
         ).order_by('word_id', '-attempted_at')
 
-        # Har bir word_id uchun eng so‘nggi urinishni tanlash
+        # Har bir word_id uchun faqat eng so‘nggi urinishni olish
         last_attempts = {}
         for attempt in attempts:
             if attempt.word_id not in last_attempts:
@@ -90,24 +143,25 @@ import random
 
 class WordsByDateAPIView(APIView):
     def get(self, request):
-        date_str = request.query_params.get('date')
+        category_name = request.query_params.get('category')
         user_id = request.query_params.get('user_id')
 
-        # date bo‘lsa — filtrlash
-        if date_str:
-            date = parse_date(date_str)
-            if not date:
-                return Response({'error': 'Invalid date'}, status=400)
-            words = Word.objects.filter(created_at=date)
-        else:
-            words = Word.objects.all()
+        if not category_name:
+            return Response({"error": "category is required"}, status=400)
 
-        # user_id bo‘lsa — urinishlar asosida tartiblash
+        try:
+            category = Category.objects.get(name=category_name)
+        except Category.DoesNotExist:
+            return Response({"error": "Category not found"}, status=404)
+
+        words = Word.objects.filter(category=category)
+
+        # user_id bo‘lsa — tartiblash
         if user_id:
             try:
                 user_id = int(user_id)
             except ValueError:
-                return Response({'error': 'Invalid user_id'}, status=400)
+                return Response({"error": "Invalid user_id"}, status=400)
 
             word_ids = list(words.values_list('id', flat=True))
             attempts = Attempt.objects.filter(user_id=user_id, word_id__in=word_ids)

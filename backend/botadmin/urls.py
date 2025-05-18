@@ -8,10 +8,12 @@ from .serializers import (
 )
 
 from .views import (
+    CategoryViewSet,
+    WordsByCategoryAPIView,
     WordsByDateAPIView,
     AddAttemptAPIView,
     AddKnownWordAPIView,
-    AttemptsByUserAndDateAPIView,
+    AttemptsByUserAndCategoryAPIView,
     AddRepeatSessionAPIView,
     AddRepeatResultAPIView,
     RepeatResultsByUserAndKeyAPIView
@@ -50,14 +52,17 @@ router.register(r'attempts', AttemptViewSet)
 router.register(r'knownwords', KnownWordViewSet)
 router.register(r'repeatsessions', RepeatSessionViewSet)
 router.register(r'repeatresults', RepeatResultViewSet)
+router.register(r'categories', CategoryViewSet)
 
 
 # --- Custom API endpoints ---
 custom_urlpatterns = [
+    path("words_by_category/", WordsByCategoryAPIView.as_view(), name="words-by-category"),
+
     path('words_by_date/', WordsByDateAPIView.as_view(), name='words-by-date'),
     path('add_attempt/', AddAttemptAPIView.as_view(), name='add-attempt'),
     path('add_known_word/', AddKnownWordAPIView.as_view(), name='add-known-word'),
-    path('attempts_by_user_and_date/', AttemptsByUserAndDateAPIView.as_view(), name='attempts-by-user-and-date'),
+    path('attempts_by_user_and_category/', AttemptsByUserAndCategoryAPIView.as_view(), name='attempts-by-user-and-date'),
     path('add_repeat_session/', AddRepeatSessionAPIView.as_view(), name='add-repeat-session'),
     path('add_repeat_result/', AddRepeatResultAPIView.as_view(), name='add-repeat-result'),
     path('repeat_results_by_user_and_key/', RepeatResultsByUserAndKeyAPIView.as_view(), name='repeat-results-by-user-and-key'),

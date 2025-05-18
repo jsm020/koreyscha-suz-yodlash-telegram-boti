@@ -2,6 +2,16 @@ import os
 from django.db import models
 from django.utils.text import slugify
 
+class Category(models.Model):
+    id = models.AutoField(primary_key=True)
+    name = models.TextField()
+    created_at = models.DateField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'categories'
+
+    def __str__(self):
+        return self.name
 
 def audio_upload_path(instance, filename):
     base, ext = os.path.splitext(filename)
@@ -16,6 +26,7 @@ class Word(models.Model):
     romanized = models.TextField(blank=True, null=True)
     audio_file = models.FileField(upload_to=audio_upload_path, blank=True, null=True)
     created_at = models.DateField(auto_now_add=True)
+    category = models.ForeignKey(Category, db_column='category_id', on_delete=models.CASCADE, blank=True, null=True)
 
     class Meta:
         db_table = 'words'
@@ -67,7 +78,7 @@ class RepeatSession(models.Model):
     id = models.AutoField(primary_key=True)
     repeat_key = models.TextField(unique=True)
     date = models.DateField()
-    words = models.ManyToManyField(Word, related_name='repeat_sessions')
+    category = models.ForeignKey('Category', on_delete=models.SET_NULL, null=True, blank=True, related_name='repeat_sessions')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -75,6 +86,12 @@ class RepeatSession(models.Model):
 
     def __str__(self):
         return f"Session {self.repeat_key} - {self.date}"
+
+    def get_words(self):
+        """Ushbu sessiyaga tegishli barcha so‘zlar (kategoriyaga qarab)"""
+        if self.category:
+            return Word.objects.filter(category=self.category)
+        return Word.objects.none()
 
 
 class RepeatResult(models.Model):

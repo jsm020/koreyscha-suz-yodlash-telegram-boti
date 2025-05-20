@@ -4,3 +4,4 @@ hangul-romanize
 gtts
 python-dotenv
 matplotlib
+django

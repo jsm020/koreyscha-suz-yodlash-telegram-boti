@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 from . import handlers
 
 load_dotenv()
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-
+BOT_TOKEN = "7493610692:AAGa6RQnB68XsGVpz-iS85fvKQq6ZKv_he8"
+print(BOT_TOKEN)
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN environment variable not set!")
 

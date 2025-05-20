@@ -25,7 +25,7 @@ SECRET_KEY = "django-insecure-vgwnl2lc)isoo9t_27h0ae$2b2c#*eqgq!mo3tn5n5rligd$u)
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['javodev.samdukf.uz', 'localhost', '127.0.0.1']
 
 
 # Application definition
@@ -41,8 +41,17 @@ INSTALLED_APPS = [
     "botadmin",
     "rest_framework",
 ]
+# INSTALLED_APPS += ['corsheaders']
+
+# CSRF_TRUSTED_ORIGINS = ['https://javodev.samdukf.uz']
+
+
+# CORS_ALLOWED_ORIGINS = [
+#     'https://javodev.samdukf.uz',
+# ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -81,7 +90,7 @@ DATABASES = {
         "NAME": "KoreanLugatlar",
         "USER": "postgres",
         "PASSWORD": "admindev",
-        "HOST": "localhost",
+        "HOST": "172.16.0.248",
         "PORT": "5432",
     }
 }

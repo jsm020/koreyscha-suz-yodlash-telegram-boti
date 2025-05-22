@@ -3,7 +3,7 @@ import httpx
 import random
 from datetime import date
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://javodev.samdukf.uz/api/")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000/api/")
 
 
 async def get_pool():

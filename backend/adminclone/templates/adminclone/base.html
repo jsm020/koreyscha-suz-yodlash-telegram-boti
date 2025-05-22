@@ -1,0 +1,311 @@
+{# adminclone/base.html #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Admin Clone{% endblock %}</title>
+
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+    
+          <style>
+
+
+
+            /* === YOMG'IR GIBI TUSHAYDIGAN RANGLI MATNLAR === */
+            .rain-text {
+                position: fixed;
+                top: -10vh;              /* Ekran yuqorisidan boshlaydi */
+                left: 50%;
+                transform: translateX(-50%);
+                font-size: 24px;
+                font-weight: bold;
+                color: transparent; /* Bu rangni keyinchalik animatsiya bilan o'zgartiramiz */
+                animation: rain 5s infinite;
+                z-index: 9999;
+            }
+            
+            /* Animatsiya */
+            @keyframes rain {
+                0% {
+                    top: -10vh;
+                    opacity: 1;
+                    color: #FF5733;       /* Rang 1 - Qizil */
+                }
+                25% {
+                    top: 10vh;
+                    opacity: 1;
+                    color: #33FF57;       /* Rang 2 - Yashil */
+                }
+                50% {
+                    top: 30vh;
+                    opacity: 1;
+                    color: #3357FF;       /* Rang 3 - Ko‘k */
+                }
+                75% {
+                    top: 50vh;
+                    opacity: 1;
+                    color: #FFFF33;       /* Rang 4 - Sariq */
+                }
+                100% {
+                    top: 70vh;
+                    opacity: 1;
+                    color: #FF33FF;       /* Rang 5 - To‘q pushti */
+                }
+            }
+            
+            /* Tushish animatsiyasini doimiy ravishda boshidan boshlatish uchun */
+            .rain-text:nth-child(odd) {
+                animation-duration: 5s; /* Tezroq tushsin */
+            }
+            .rain-text:nth-child(even) {
+                animation-duration: 7s; /* Sekinroq tushsin */
+            }
+
+            {% comment %}  {% endcomment %}
+
+            body, a, button, input, textarea {
+                cursor: url("data:image/svg+xml;utf8,\
+                    <svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'>\
+                        <path d='M3 15C5 9 11 7 16 9c5 3 6 9 2 13'\
+                              stroke='%23000' stroke-width='4' fill='none' stroke-linecap='round'/>\
+                        <circle cx='20' cy='8' r='4' fill='%23000'/>\
+                    </svg>") 4 4, auto;
+            }
+            
+            /* Tail segmentlar (eng kichik qismini ham gradient bilan) */
+            .trail {
+                position: fixed;
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+                background: radial-gradient(circle at 30% 30%, #0dcaf0 0%, #084298 80%);
+                pointer-events: none;
+                z-index: 9998;
+                transform: translate(-50%, -50%) scale(.8);
+                box-shadow: 0 0 6px rgba(13,202,240,.75);
+            }
+            /* ==== 2. AJDAR: parvoz + “qanot qoqish” ==== */
+            .dragon{
+                position:fixed;
+                top:-15vh; left:-20vw;
+                width:90px;
+                pointer-events:none;
+                z-index:10000;
+                transform-origin:center;
+                animation:flyPath 22s linear infinite,
+                         flapWings 1s ease-in-out infinite,
+                         breathe 3s ease-in-out infinite;
+            }
+            @keyframes flyPath{
+                0%{transform:translate(-20vw,110vh) rotate(0deg);}
+                25%{transform:translate(25vw,60vh) rotate(12deg);}
+                50%{transform:translate(70vw,15vh) rotate(-10deg);}
+                75%{transform:translate(120vw,45vh) rotate(8deg);}
+                100%{transform:translate(-20vw,110vh) rotate(0deg);}
+            }
+            @keyframes flapWings{0%,100%{transform:scale(1);}50%{transform:scale(1.12) skewY(3deg);}}
+            @keyframes breathe  {0%,100%{translate:0 0;}50%{translate:0 -6px;}}
+            body.dark .dragon{filter:brightness(1.35) saturate(1.25);}
+            
+            /* ==== 3. KARTALAR: fantastik laser + chuqur 3-D soya ==== */
+            .card.fancy {
+                position: relative;
+                overflow: hidden;
+                transform-style: preserve-3d;
+                transition: transform .45s cubic-bezier(.19,1,.22,1),
+                            box-shadow .45s cubic-bezier(.19,1,.22,1);
+                box-shadow: 0 .25rem .75rem rgba(0,0,0,.25);
+            }
+            .card.fancy:hover {
+                transform: perspective(1000px) rotateY(8deg) translateY(-10px);
+                box-shadow: 0 1.2rem 2.4rem rgba(0,0,0,.45),
+                            0 .5rem 1rem rgba(0,0,0,.35);
+            }
+            .card.fancy .bi {
+                transition: transform .45s cubic-bezier(.19,1,.22,1);
+            }
+            .card.fancy:hover .bi {
+                transform: translateX(12px) scale(1.25) rotate(10deg);
+            }
+            /* Laser chiziq */
+            .card.fancy::before {
+                content: "";
+                position: absolute;
+                top: -180%;
+                left: -50%;
+                width: 200%;
+                height: 400%;
+                background: linear-gradient(60deg,
+                    rgba(255,255,255,0)   0%,
+                    rgba(255,255,255,.05) 15%,
+                    rgba(255,255,255,.85) 50%,
+                    rgba(255,255,255,.05) 85%,
+                    rgba(255,255,255,0)  100%);
+                opacity: .9;
+                filter: blur(2px) brightness(1.4);
+                transform: translateX(-120%) rotate(12deg);
+                transition: transform .9s cubic-bezier(.165,.84,.44,1);
+            }
+            .card.fancy:hover::before { transform: translateX(120%) rotate(12deg); }
+            body.dark .card.fancy::before { opacity:1; filter: blur(2px) brightness(1.8); }
+            
+            /* Dark mode: gradient aniqroq bo‘lsin */
+            body.dark .card.fancy::before {
+                opacity: 1;
+                filter: blur(2px) brightness(1.6);
+            }
+
+            /* --- GLOBAL BACKGROUND IMAGE --- */
+            body::before {
+                content: "";
+                position: fixed;
+                inset: 0;                       /* top:0; right:0; bottom:0; left:0 */
+                background: url("https://en.idei.club/uploads/posts/2023-06/thumbs/1685989737_en-idei-club-p-sakura-daraxti-dizain-73.jpg")
+                            no-repeat center center fixed;
+                background-size: cover;
+                opacity: 0.5;                  /* ← shu yerda pasaytirish (0 ÷ 1) */
+                z-index: -1;                    /* sahifaga xalaqit bermaydi */
+            }
+            
+            /* Dark Mode — fon rasmini ham batamom o‘chirib qo‘yamiz */
+            body.dark::before {
+                display: none;
+            }
+            
+        
+            /* Dark Mode: fon rasmini olib tashlaymiz (istasa qoldirsa ham bo‘ladi) */
+            body.dark {
+                background-image: none;
+                background-color: #212529;
+                color: #f8f9fa;
+            }
+        
+            /* ... (sizda allaqachon mavjud bo‘lgan kodlar) ... */
+            body.dark .table         { color:#f8f9fa; }
+            body.dark .thead-light th{ color:#f8f9fa; background:#343a40; }
+            body.dark .navbar        { background:#343a40 !important; }
+            body.dark .page-link     { background:#343a40; color:#f8f9fa; }
+        
+            /* Hover-lift animatsiyasi */
+            .hover-lift              { transition:transform .2s ease, box-shadow .2s ease; }
+            .hover-lift:hover        { transform:translateY(-4px); box-shadow:0 .5rem 1rem rgba(0,0,0,.15); }
+
+            /* Kursorni hamma elementlarda batamom o‘chirib qo‘yish */
+            html, body, * { cursor: none !important; }
+
+        </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="{% url 'adminclone:index' %}">Admin Clone</a>
+
+        <button class="btn btn-outline-secondary ms-auto" id="toggle-dark">
+            🌙 / ☀️
+        </button>
+
+        {% if user.is_authenticated %}
+            <a class="btn btn-outline-danger ms-2" href="{% url 'adminclone:logout' %}">Logout</a>
+        {% endif %}
+    </div>
+</nav>
+
+<div class="rain-text">(❁´◡`❁)</div>
+<div class="rain-text">😂</div>
+
+
+<div class="container mt-4">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+    {% block content %}{% endblock %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // --- Dark mode toggle ---
+    const body   = document.body;
+    const button = document.getElementById('toggle-dark');
+    // holatni tiklash
+    if (localStorage.getItem('darkMode') === 'on') body.classList.add('dark');
+
+    button.addEventListener('click', () => {
+        body.classList.toggle('dark');
+        localStorage.setItem('darkMode',
+            body.classList.contains('dark') ? 'on' : 'off');
+    });
+
+/* ---------- ILON BOSHI KURSORGA MAHKAM ---------- */
+const SEGMENTS = 24;
+const SPRING   = 0.7;
+const GAP      = 0.8;
+
+function newSeg(size = 12) {
+    const d = document.createElement('div');
+    d.className = 'trail';
+    d.style.width = d.style.height = size + 'px';
+    document.body.appendChild(d);
+    return {el:d, x:innerWidth/2, y:innerHeight/2, vx:0, vy:0};
+}
+
+/* Segmentlar */
+const segs = [newSeg(18), ...Array.from({length: SEGMENTS-1}, _=>newSeg())];
+
+/* Boshi yanada yorqin */
+segs[0].el.style.boxShadow = '0 0 10px rgba(13,202,240,.9)';
+
+let mx = innerWidth/2, my = innerHeight/2;
+addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+
+function follow() {
+    /* --- BOSHI (0-segment) to‘g‘ri kursor markazida --- */
+    segs[0].x = mx;
+    segs[0].y = my;
+    segs[0].el.style.left = mx + 'px';
+    segs[0].el.style.top  = my + 'px';
+    segs[0].el.style.transform = 'translate(-50%,-50%) scale(1)';
+    segs[0].el.style.opacity = 1;
+
+    /* --- Qolgan segmentlar elastik ergashadi --- */
+    for (let i = 1; i < SEGMENTS; i++) {
+        const s = segs[i];
+        const p = segs[i-1];
+
+        const targetX = p.x - s.vx * GAP;
+        const targetY = p.y - s.vy * GAP;
+
+        s.vx += (targetX - s.x) * SPRING;
+        s.vy += (targetY - s.y) * SPRING;
+        s.vx *= 0.5;
+        s.vy *= 0.5;
+
+        s.x += s.vx;
+        s.y += s.vy;
+
+        const k = (SEGMENTS - i) / SEGMENTS;
+        s.el.style.left = s.x + 'px';
+        s.el.style.top  = s.y + 'px';
+        s.el.style.transform = `translate(-50%,-50%) scale(${k})`;
+        s.el.style.opacity   = k;
+    }
+    requestAnimationFrame(follow);
+}
+follow();
+
+
+
+if (!document.querySelector('.dragon')) {
+    const dragon = new Image();
+    /* Ishonchli GIF; agar sizda boshqasi bo'lsa – URL'ni almashtiring */
+    dragon.src = 'https://i.imgur.com/iYdX8eB.gif';
+    dragon.alt = 'dragon';
+    dragon.className = 'dragon';
+    document.body.appendChild(dragon);
+}
+</script>
+</body>
+</html>

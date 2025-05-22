@@ -1,0 +1,76 @@
+{% extends 'adminclone/base.html' %}
+{% load custom_filters %}
+
+{% block title %}{{ model_verbose_name }}{% endblock %}
+{% block content %}
+<h2>{{ model_verbose_name }}</h2>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-auto">
+        <input type="text" name="q" class="form-control"
+               placeholder="Qidiruv..." value="{{ query }}">
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Izla</button>
+    </div>
+</form>
+
+<a href="{% url 'adminclone:model_create' model_name=model_name %}"
+   class="btn btn-success mb-3">Add New</a>
+
+<table class="table table-hover table-bordered">
+    <thead class="table-light">
+        <tr>
+            {% for f in fields %}
+                <th>{{ f.verbose_name|title }}</th>
+            {% endfor %}
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for obj in page_obj.object_list %}
+            <tr>
+                {% for f in fields %}
+                    <td>{{ obj|attr:f.name }}</td>
+                {% endfor %}
+                <td>
+                    <a href="{% url 'adminclone:model_update' model_name=model_name pk=obj.pk %}"
+                       class="btn btn-sm btn-info">Edit</a>
+                    <a href="{% url 'adminclone:model_delete' model_name=model_name pk=obj.pk %}"
+                       class="btn btn-sm btn-danger">Delete</a>
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="{{ fields|length|add:1 }}">Ma’lumot topilmadi.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<nav>
+  <ul class="pagination">
+    {% if page_obj.has_previous %}
+      <li class="page-item">
+        <a class="page-link" href="?q={{ query }}&page={{ page_obj.previous_page_number }}">&laquo;</a>
+      </li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+    {% endif %}
+
+    {% for num in page_obj.paginator.page_range %}
+      {% if num == page_obj.number %}
+        <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+      {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
+        <li class="page-item"><a class="page-link" href="?q={{ query }}&page={{ num }}">{{ num }}</a></li>
+      {% endif %}
+    {% endfor %}
+
+    {% if page_obj.has_next %}
+      <li class="page-item">
+        <a class="page-link" href="?q={{ query }}&page={{ page_obj.next_page_number }}">&raquo;</a>
+      </li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+    {% endif %}
+  </ul>
+</nav>
+{% endblock %}

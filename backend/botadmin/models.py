@@ -1,4 +1,5 @@
 import os
+import re
 from django.db import models
 from django.utils.text import slugify
 
@@ -39,7 +40,10 @@ class Word(models.Model):
         if not self.romanized:
             self.romanized = romanize_korean(self.korean)
         if not self.audio_file:
-            filename = f"{slugify(self.korean)}.mp3"
+            safe_name = re.sub(r'[\\/*?:"<>|]', "", self.korean).replace(" ", "_")
+            filename = f"{safe_name}.mp3"
+
+            print(f"Generating audio for {self.korean} -> {filename}")
             audio_path = generate_audio_file(self.korean, filename)
             self.audio_file.name = audio_path
         super().save(*args, **kwargs)

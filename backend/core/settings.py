@@ -25,7 +25,7 @@ SECRET_KEY = "django-insecure-vgwnl2lc)isoo9t_27h0ae$2b2c#*eqgq!mo3tn5n5rligd$u)
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['localhost', '172.16.0.248',"javodev.samdukf.uz"]
 
 
 # Application definition
@@ -42,14 +42,14 @@ INSTALLED_APPS = [
     'adminclone',
     "rest_framework",
 ]
-# INSTALLED_APPS += ['corsheaders']
+INSTALLED_APPS += ['corsheaders']
 
-# CSRF_TRUSTED_ORIGINS = ['https://javodev.samdukf.uz']
+CSRF_TRUSTED_ORIGINS = ['https://javodev.samdukf.uz']
 
 
-# CORS_ALLOWED_ORIGINS = [
-#     'https://javodev.samdukf.uz',
-# ]
+CORS_ALLOWED_ORIGINS = [
+    'https://javodev.samdukf.uz',
+]
 
 MIDDLEWARE = [
     # 'corsheaders.middleware.CorsMiddleware',

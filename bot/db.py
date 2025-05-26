@@ -3,7 +3,7 @@ import httpx
 import random
 from datetime import date
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000/api/")
+BACKEND_URL = os.getenv("BACKEND_URL", "https://javodev.samdukf.uz/api/")
 
 
 async def get_pool():
@@ -27,21 +27,6 @@ async def get_known_word_ids(pool, user_id):
         data = resp.json()
         return set([item['word'] for item in data])
 
-
-# # So‘z qo‘shish
-# async def add_word(pool, korean, uzbek, romanized, audio_url):
-#     async with httpx.AsyncClient() as client:
-#         resp = await client.post(f"{BACKEND_URL}words/", json={
-#             "korean": korean,
-#             "uzbek": uzbek,
-#             "romanized": romanized,
-#             "audio_url": audio_url
-#         })
-#         resp.raise_for_status()
-#         return resp.json()
-
-
-# Attempt qo‘shish
 async def add_attempt(pool, word_id, user_id, attempt_count, is_correct):
     async with httpx.AsyncClient() as client:
         resp = await client.post(f"{BACKEND_URL}add_attempt/", json={
